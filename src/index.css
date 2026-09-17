@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import "@xterm/xterm/css/xterm.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* VS Code scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(121, 121, 121, 0.4);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.7);
+}
+
+/* XTerm styling - fundo 100% idêntico tanto para viewport quanto para screen */
+.xterm,
+.xterm .xterm-viewport,
+.xterm .xterm-screen,
+.xterm .xterm-screen canvas,
+.xterm .xterm-helpers {
+  background-color: transparent !important;
+}
+
+.dark .xterm,
+.dark .xterm .xterm-viewport,
+.dark .xterm .xterm-screen,
+.dark .xterm .xterm-helpers {
+  background-color: #1e1e1e !important;
+}
+
+html:not(.dark) .xterm,
+html:not(.dark) .xterm .xterm-viewport,
+html:not(.dark) .xterm .xterm-screen,
+html:not(.dark) .xterm .xterm-helpers {
+  background-color: #ffffff !important;
+}
+
+.xterm {
+  height: 100%;
+  padding: 6px 10px;
+}
+
+.xterm-viewport {
+  overflow-y: auto !important;
+}
+
+/* Base resets */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}

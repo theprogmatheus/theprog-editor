@@ -1,0 +1,638 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  FilePlus,
+  FolderPlus,
+  ChevronDown,
+  ChevronRight,
+  FileCode,
+  FileText,
+  Trash2,
+  Edit2,
+  Folder,
+  FolderOpen,
+  Check,
+  X,
+  ChevronLeft,
+} from 'lucide-react';
+import { useEditor } from '../../context/EditorContext';
+import { useDialog } from '../../context/DialogContext';
+import type { FileItem } from '../../types/editor';
+
+interface CreatingState {
+  parentId: string | null;
+  isFolder: boolean;
+}
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  file?: FileItem | null;
+}
+
+export const Sidebar: React.FC = () => {
+  const { showConfirm } = useDialog();
+  const {
+    files,
+    activeFileId,
+    openFile,
+    createNewFile,
+    deleteFile,
+    renameFile,
+    isSidebarOpen,
+    toggleSidebar,
+    sidebarWidth,
+    setSidebarWidth,
+  } = useEditor();
+
+  const [creatingState, setCreatingState] = useState<CreatingState | null>(null);
+  const [newItemName, setNewItemName] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [isSectionOpen, setIsSectionOpen] = useState(true);
+  const [isResizing, setIsResizing] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    return new Set(files.filter((f) => f.isFolder).map((f) => f.id));
+  });
+
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  // Fecha o menu de contexto ao clicar fora ou apertar Escape
+  useEffect(() => {
+    const handleClose = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+
+    if (contextMenu) {
+      window.addEventListener('click', handleClose);
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('click', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [contextMenu]);
+
+  // Auto-expande novas pastas se adicionadas
+  useEffect(() => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      files.forEach((f) => {
+        if (f.isFolder && !next.has(f.id)) {
+          next.add(f.id);
+        }
+      });
+      return next;
+    });
+  }, [files]);
+
+  // Manipulador de redimensionamento da sidebar via drag na borda direita
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = e.clientX - 48;
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, setSidebarWidth]);
+
+  if (!isSidebarOpen) return null;
+
+  const toggleFolder = (folderId: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  };
+
+  const handleStartCreate = (isFolder: boolean, parentId: string | null = null) => {
+    setCreatingState({ parentId, isFolder });
+    setNewItemName('');
+    if (parentId) {
+      setExpandedFolders((prev) => new Set(prev).add(parentId));
+    }
+  };
+
+  const handleConfirmCreate = async () => {
+    if (creatingState && newItemName.trim()) {
+      await createNewFile(newItemName.trim(), creatingState.isFolder, creatingState.parentId);
+    }
+    setCreatingState(null);
+    setNewItemName('');
+  };
+
+  const handleCancelCreate = () => {
+    setCreatingState(null);
+    setNewItemName('');
+  };
+
+  const handleStartRename = (file: FileItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(file.id);
+    setEditingName(file.name);
+  };
+
+  const handleConfirmRename = async (fileId: string) => {
+    if (editingName.trim()) {
+      await renameFile(fileId, editingName.trim());
+    }
+    setEditingId(null);
+  };
+
+  const handleDelete = async (file: FileItem, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const title = file.isFolder ? 'Excluir Pasta' : 'Excluir Arquivo';
+    const message = file.isFolder
+      ? `Tem certeza que deseja excluir a pasta "${file.name}" e todo o seu conteúdo recursivamente?`
+      : `Tem certeza que deseja excluir "${file.name}"? Esta ação não pode ser desfeita.`;
+
+    const confirmed = await showConfirm({
+      title,
+      message,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+      danger: true,
+    });
+
+    if (confirmed) {
+      await deleteFile(file.id);
+    }
+  };
+
+  const getFileIcon = (file: FileItem) => {
+    if (file.isFolder) {
+      return <Folder className="w-4 h-4 text-amber-500 shrink-0" />;
+    }
+    const lower = file.name.toLowerCase();
+    if (lower.endsWith('.c')) {
+      return (
+        <span className="w-4 h-4 rounded bg-[#007acc]/20 text-[#007acc] dark:text-[#3794ff] text-[10px] font-bold flex items-center justify-center shrink-0 border border-[#007acc]/40">
+          C
+        </span>
+      );
+    }
+    if (lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx')) {
+      return (
+        <span className="w-4 h-4 rounded bg-[#00599c]/20 text-[#00599c] dark:text-[#519aba] text-[9px] font-bold flex items-center justify-center shrink-0 border border-[#00599c]/40">
+          C++
+        </span>
+      );
+    }
+    if (lower.endsWith('.h') || lower.endsWith('.hpp')) {
+      return (
+        <span className="w-4 h-4 rounded bg-purple-900/30 text-purple-600 dark:text-purple-300 text-[10px] font-bold flex items-center justify-center shrink-0 border border-purple-500/40">
+          H
+        </span>
+      );
+    }
+    if (lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) {
+      return (
+        <span className="w-4 h-4 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-amber-500/40">
+          JS
+        </span>
+      );
+    }
+    if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.jsx')) {
+      return (
+        <span className="w-4 h-4 rounded bg-sky-500/20 text-sky-600 dark:text-sky-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-sky-500/40">
+          TS
+        </span>
+      );
+    }
+    if (lower.endsWith('.py')) {
+      return (
+        <span className="w-4 h-4 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-emerald-500/40">
+          PY
+        </span>
+      );
+    }
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) {
+      return (
+        <span className="w-4 h-4 rounded bg-orange-500/20 text-orange-600 dark:text-orange-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-orange-500/40">
+          &lt;&gt;
+        </span>
+      );
+    }
+    if (lower.endsWith('.css') || lower.endsWith('.scss')) {
+      return (
+        <span className="w-4 h-4 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-blue-500/40">
+          #
+        </span>
+      );
+    }
+    if (lower.endsWith('.json')) {
+      return (
+        <span className="w-4 h-4 rounded bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-yellow-500/40">
+          &#123;&#125;
+        </span>
+      );
+    }
+    if (lower.endsWith('.sh') || lower.endsWith('.bash')) {
+      return (
+        <span className="w-4 h-4 rounded bg-slate-500/20 text-slate-600 dark:text-slate-300 text-[9px] font-bold flex items-center justify-center shrink-0 border border-slate-500/40">
+          $
+        </span>
+      );
+    }
+    if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
+      return <FileText className="w-4 h-4 text-sky-500 dark:text-sky-400 shrink-0" />;
+    }
+    return <FileCode className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />;
+  };
+
+  const renderCreationInput = (depth: number) => {
+    return (
+      <div
+        style={{ paddingLeft: `${12 + depth * 14}px` }}
+        className="flex items-center pr-2 py-1 space-x-1.5 bg-[#e8e8e8] dark:bg-[#2a2d2e]"
+      >
+        {creatingState?.isFolder ? (
+          <Folder className="w-4 h-4 text-amber-500 shrink-0" />
+        ) : (
+          <FileCode className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />
+        )}
+        <input
+          type="text"
+          value={newItemName}
+          placeholder={creatingState?.isFolder ? 'nome da pasta...' : 'nome_do_arquivo.ext'}
+          onChange={(e) => setNewItemName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleConfirmCreate();
+            if (e.key === 'Escape') handleCancelCreate();
+          }}
+          autoFocus
+          className="flex-1 bg-white dark:bg-[#3c3c3c] text-black dark:text-white px-1.5 py-0.5 rounded text-xs outline-none border border-[#007acc] min-w-0"
+        />
+        <button
+          onClick={handleConfirmCreate}
+          className="p-0.5 text-emerald-600 dark:text-emerald-400 hover:opacity-80 cursor-pointer shrink-0"
+        >
+          <Check className="w-3 h-3" />
+        </button>
+        <button
+          onClick={handleCancelCreate}
+          className="p-0.5 text-rose-600 dark:text-rose-400 hover:opacity-80 cursor-pointer shrink-0"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  };
+
+  const renderTree = (parentId: string | null, depth: number): React.ReactNode => {
+    const items = files.filter((f) => {
+      if (parentId === null) {
+        return !f.parentId || f.parentId === null;
+      }
+      return f.parentId === parentId;
+    });
+
+    const sorted = [...items].sort((a, b) => {
+      if (a.isFolder && !b.isFolder) return -1;
+      if (!a.isFolder && b.isFolder) return 1;
+      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return (
+      <React.Fragment key={parentId ?? 'root'}>
+        {creatingState?.parentId === parentId && renderCreationInput(depth)}
+
+        {sorted.map((item) => {
+          const isFolder = !!item.isFolder;
+          const isExpanded = expandedFolders.has(item.id);
+          const isActive = !isFolder && item.id === activeFileId;
+          const isEditing = item.id === editingId;
+
+          if (isFolder) {
+            return (
+              <div key={item.id}>
+                <div
+                  onClick={() => toggleFolder(item.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({ x: e.clientX, y: e.clientY, file: item });
+                  }}
+                  style={{ paddingLeft: `${8 + depth * 14}px` }}
+                  className="group flex items-center justify-between pr-2 py-1 cursor-pointer transition-colors hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e] text-[#333333] dark:text-[#cccccc]"
+                >
+                  <div className="flex items-center space-x-1 truncate flex-1 mr-1">
+                    <span className="p-0.5 text-[#616161] dark:text-[#888888] shrink-0">
+                      {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                    </span>
+                    {isExpanded ? (
+                      <FolderOpen className="w-4 h-4 text-amber-500 shrink-0" />
+                    ) : (
+                      <Folder className="w-4 h-4 text-amber-500 shrink-0" />
+                    )}
+
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleConfirmRename(item.id);
+                          if (e.key === 'Escape') setEditingId(null);
+                        }}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white dark:bg-[#3c3c3c] text-black dark:text-white px-1.5 py-0.5 rounded text-xs outline-none border border-[#007acc] w-full"
+                      />
+                    ) : (
+                      <span className="truncate font-medium">{item.name}</span>
+                    )}
+                  </div>
+
+                  {/* Ações de Hover da Pasta */}
+                  {!isEditing && (
+                    <div className="hidden group-hover:flex items-center space-x-0.5 shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartCreate(false, item.id);
+                        }}
+                        title="Novo Arquivo nesta pasta"
+                        className="p-1 hover:text-[#007acc] cursor-pointer"
+                      >
+                        <FilePlus className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartCreate(true, item.id);
+                        }}
+                        title="Nova Subpasta nesta pasta"
+                        className="p-1 hover:text-[#007acc] cursor-pointer"
+                      >
+                        <FolderPlus className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => handleStartRename(item, e)}
+                        title="Renomear Pasta"
+                        className="p-1 hover:text-[#007acc] cursor-pointer"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => handleDelete(item, e)}
+                        title="Excluir Pasta"
+                        className="p-1 hover:text-rose-500 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Filhos da Pasta */}
+                {isExpanded && renderTree(item.id, depth + 1)}
+              </div>
+            );
+          }
+
+          // Arquivo normal
+          return (
+            <div
+              key={item.id}
+              onClick={() => openFile(item.id)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setContextMenu({ x: e.clientX, y: e.clientY, file: item });
+              }}
+              style={{ paddingLeft: `${18 + depth * 14}px` }}
+              className={`group flex items-center justify-between pr-2 py-1 cursor-pointer transition-colors ${
+                isActive
+                  ? 'bg-[#e4e6f1] dark:bg-[#37373d] text-black dark:text-white font-medium border-l-2 border-[#007acc]'
+                  : 'hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e] text-[#333333] dark:text-[#cccccc]'
+              }`}
+            >
+              <div className="flex items-center space-x-2 truncate flex-1 mr-1">
+                {getFileIcon(item)}
+
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleConfirmRename(item.id);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    autoFocus
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-white dark:bg-[#3c3c3c] text-black dark:text-white px-1.5 py-0.5 rounded text-xs outline-none border border-[#007acc] w-full"
+                  />
+                ) : (
+                  <span className="truncate">{item.name}</span>
+                )}
+              </div>
+
+              {/* Ações de Hover (Renomear / Excluir) */}
+              {!isEditing && (
+                <div className="hidden group-hover:flex items-center space-x-1 shrink-0">
+                  <button
+                    onClick={(e) => handleStartRename(item, e)}
+                    title="Renomear"
+                    className="p-1 hover:text-[#007acc] cursor-pointer"
+                  >
+                    <Edit2 className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={(e) => handleDelete(item, e)}
+                    title="Excluir"
+                    className="p-1 hover:text-rose-500 cursor-pointer"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </React.Fragment>
+    );
+  };
+
+  return (
+    <aside
+      ref={sidebarRef}
+      style={{ width: `${sidebarWidth}px` }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setContextMenu({ x: e.clientX, y: e.clientY, file: null });
+      }}
+      className="relative flex flex-col bg-[#f3f3f3] dark:bg-[#181818] border-r border-[#e5e5e5] dark:border-[#252526] select-none text-[#333333] dark:text-[#cccccc] text-xs h-full shrink-0 transition-[background-color,border-color] duration-150"
+    >
+      {/* Topo do Explorador com botões globais e de colapsar */}
+      <div className="h-9 px-3 flex items-center justify-between font-semibold tracking-wider text-[11px] text-[#616161] dark:text-[#888888] border-b border-[#e5e5e5] dark:border-[#202020]">
+        <span>EXPLORADOR</span>
+        <div className="flex items-center space-x-1">
+          <button
+            onClick={() => handleStartCreate(false, null)}
+            title="Novo Arquivo na raiz"
+            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
+          >
+            <FilePlus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => handleStartCreate(true, null)}
+            title="Nova Pasta na raiz"
+            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={toggleSidebar}
+            title="Esconder Barra Lateral"
+            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer ml-1"
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Seção Workspace Hierárquica */}
+      <div className="flex-1 overflow-y-auto">
+        <div
+          onClick={() => setIsSectionOpen(!isSectionOpen)}
+          className="flex items-center space-x-1 px-2 py-1 cursor-pointer font-bold text-[11px] text-[#333333] dark:text-[#aaaaaa] hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e]"
+        >
+          {isSectionOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+          <span className="uppercase tracking-wider">WORKSPACE</span>
+        </div>
+
+        {isSectionOpen && (
+          <div className="py-1">
+            {renderTree(null, 0)}
+          </div>
+        )}
+      </div>
+
+      {/* Alça de redimensionamento na borda direita */}
+      <div
+        onMouseDown={() => setIsResizing(true)}
+        title="Arraste para redimensionar a barra lateral"
+        className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-[#007acc]/60 transition-colors z-10"
+      />
+
+      {/* Menu de Contexto Customizado (Botão Direito) */}
+      {contextMenu && (
+        <div
+          style={{
+            top: `${Math.min(contextMenu.y, window.innerHeight - 240)}px`,
+            left: `${Math.min(contextMenu.x, window.innerWidth - 210)}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="fixed z-50 min-w-[195px] py-1 bg-white dark:bg-[#252526] border border-[#d4d4d4] dark:border-[#454545] rounded-md shadow-2xl text-xs text-[#333333] dark:text-[#cccccc] select-none"
+        >
+          {/* Opções de Criação */}
+          <button
+            onClick={() => {
+              const pid = contextMenu.file
+                ? contextMenu.file.isFolder
+                  ? contextMenu.file.id
+                  : (contextMenu.file.parentId ?? null)
+                : null;
+              handleStartCreate(false, pid);
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <FilePlus className="w-3.5 h-3.5 text-[#007acc] dark:text-[#3794ff]" />
+            <span>Novo Arquivo</span>
+          </button>
+
+          <button
+            onClick={() => {
+              const pid = contextMenu.file
+                ? contextMenu.file.isFolder
+                  ? contextMenu.file.id
+                  : (contextMenu.file.parentId ?? null)
+                : null;
+              handleStartCreate(true, pid);
+              setContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <FolderPlus className="w-3.5 h-3.5 text-amber-500" />
+            <span>Nova Pasta</span>
+          </button>
+
+          {/* Opções do Item Clicado (Renomear / Excluir) */}
+          {contextMenu.file && (
+            <>
+              <div className="my-1 border-t border-[#e5e5e5] dark:border-[#383838]" />
+              <button
+                onClick={(e) => {
+                  if (contextMenu.file) {
+                    handleStartRename(contextMenu.file, e);
+                  }
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-[#616161] dark:text-[#aaaaaa]" />
+                <span>Renomear</span>
+              </button>
+              <button
+                onClick={(e) => {
+                  if (contextMenu.file) {
+                    handleDelete(contextMenu.file, e);
+                  }
+                  setContextMenu(null);
+                }}
+                className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#e51400] hover:text-white text-rose-600 dark:text-rose-400 cursor-pointer transition-colors text-left"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Excluir</span>
+              </button>
+            </>
+          )}
+
+          <div className="my-1 border-t border-[#e5e5e5] dark:border-[#383838]" />
+
+          {/* Opção para Esconder Barra Lateral */}
+          <button
+            onClick={() => {
+              setContextMenu(null);
+              toggleSidebar();
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <ChevronLeft className="w-3.5 h-3.5 text-[#616161] dark:text-[#aaaaaa]" />
+            <span>Esconder Barra Lateral</span>
+          </button>
+        </div>
+      )}
+    </aside>
+  );
+};
+

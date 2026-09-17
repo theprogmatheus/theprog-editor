@@ -1,0 +1,83 @@
+import React, { useState, useEffect } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
+import { DialogProvider } from './context/DialogContext';
+import { EditorProvider, useEditor } from './context/EditorContext';
+import { TitleBar } from './components/layout/TitleBar';
+import { ActivityBar, type ActivityTab } from './components/layout/ActivityBar';
+import { Sidebar } from './components/layout/Sidebar';
+import { EditorArea } from './components/layout/EditorArea';
+import { TerminalPanel } from './components/layout/TerminalPanel';
+import { SettingsModal } from './components/modals/SettingsModal';
+import { InitVMModal } from './components/modals/InitVMModal';
+import { HelpModal } from './components/modals/HelpModal';
+import { LinuxLoadingScreen } from './components/common/LinuxLoadingScreen';
+
+const MainLayout: React.FC = () => {
+  const [activeActivityTab, setActiveActivityTab] = useState<ActivityTab>('explorer');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isVMModalOpen, setIsVMModalOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const { isLinuxLoading, vmStatusMessage } = useEditor();
+
+  useEffect(() => {
+    document.title = 'TheProg Editor';
+  }, []);
+
+  const handleActivityChange = (tab: ActivityTab) => {
+    if (tab === 'settings') {
+      setIsSettingsOpen(true);
+    } else if (tab === 'help') {
+      setIsHelpOpen(true);
+    } else {
+      setActiveActivityTab(tab);
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden font-sans select-none bg-white dark:bg-[#1e1e1e] text-[#333333] dark:text-[#cccccc] transition-colors">
+      {/* Topo: TitleBar */}
+      <TitleBar
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenVMModal={() => setIsVMModalOpen(true)}
+      />
+
+      {/* Centro: ActivityBar + Sidebar + Editor/Terminal */}
+      <div className="flex-1 flex overflow-hidden">
+        <ActivityBar
+          activeTab={activeActivityTab}
+          setActiveTab={handleActivityChange}
+          onOpenHelp={() => setIsHelpOpen(true)}
+        />
+
+        {activeActivityTab === 'explorer' && <Sidebar />}
+
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <EditorArea />
+          <TerminalPanel />
+        </div>
+      </div>
+
+      {/* Modais */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <InitVMModal isOpen={isVMModalOpen} onClose={() => setIsVMModalOpen(false)} />
+      <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      {/* Loading bloqueante enquanto Linux inicializa */}
+      <LinuxLoadingScreen isLoading={isLinuxLoading} statusMessage={vmStatusMessage} />
+    </div>
+  );
+};
+
+export function App() {
+  return (
+    <ThemeProvider>
+      <DialogProvider>
+        <EditorProvider>
+          <MainLayout />
+        </EditorProvider>
+      </DialogProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;
