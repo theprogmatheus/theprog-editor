@@ -28,6 +28,9 @@ interface EditorContextType {
   runActiveFile: (overrideContent?: string) => void;
   formatActiveFile: () => void;
   resetTerminal: () => void;
+  stopExecution: () => void;
+  reorderTabs: (fromIndex: number, toIndex: number) => void;
+  moveFileItem: (fileId: string, newParentId: string | null) => Promise<void>;
   fontSize: number;
   setFontSize: (size: number) => void;
   increaseFontSize: () => void;
@@ -402,6 +405,84 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     vmManager.clearTerminal();
   }, []);
 
+  const stopExecution = useCallback(() => {
+    vmManager.stopExecution();
+  }, []);
+
+  // Reordenação de abas via Drag and Drop
+  const reorderTabs = useCallback((fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setTabs((prev) => {
+      if (fromIndex < 0 || fromIndex >= prev.length || toIndex < 0 || toIndex >= prev.length) {
+        return prev;
+      }
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      return updated;
+    });
+  }, []);
+
+  // Mover arquivo ou pasta na árvore do workspace
+  const moveFileItem = useCallback(
+    async (fileId: string, newParentId: string | null) => {
+      setFiles((prev) => {
+        const target = prev.find((f) => f.id === fileId);
+        if (!target || target.parentId === newParentId) return prev;
+
+        // Impede mover uma pasta para dentro de si mesma ou de seus descendentes
+        if (newParentId) {
+          let curr: FileItem | undefined = prev.find((f) => f.id === newParentId);
+          while (curr) {
+            if (curr.id === fileId) return prev; // Ciclo inválido!
+            curr = curr.parentId ? prev.find((f) => f.id === curr!.parentId) : undefined;
+          }
+        }
+
+        const newParent = newParentId ? prev.find((f) => f.id === newParentId) : null;
+        const newBasePath = newParent ? newParent.path : '';
+        const oldPath = target.path;
+        const newPath = `${newBasePath}/${target.name}`;
+
+        const updated = prev.map((f) => {
+          if (f.id === fileId) {
+            return { ...f, parentId: newParentId, path: newPath, updatedAt: Date.now() };
+          }
+          if (f.path.startsWith(oldPath + '/')) {
+            return {
+              ...f,
+              path: newPath + f.path.slice(oldPath.length),
+              updatedAt: Date.now(),
+            };
+          }
+          return f;
+        });
+
+        // Persiste assincronamente
+        setTimeout(() => {
+          updated.forEach((f) => {
+            if (f.id === fileId || f.path.startsWith(newPath + '/')) {
+              saveFileToStorage(f);
+            }
+          });
+        }, 0);
+
+        return updated;
+      });
+    },
+    []
+  );
+
+  // Sincronização resiliente de abas: garante que se há abas, uma esteja ativa
+  useEffect(() => {
+    if (tabs.length > 0) {
+      const activeExists = tabs.some((t) => t.fileId === activeFileId);
+      if (!activeExists) {
+        setActiveFileId(tabs[tabs.length - 1].fileId);
+      }
+    }
+  }, [tabs, activeFileId]);
+
   return (
     <EditorContext.Provider
       value={{
@@ -428,6 +509,9 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         runActiveFile,
         formatActiveFile,
         resetTerminal,
+        stopExecution,
+        reorderTabs,
+        moveFileItem,
         fontSize,
         setFontSize: handleSetFontSize,
         increaseFontSize,

@@ -30,7 +30,20 @@ export default defineConfig({
         ],
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 120 * 1024 * 1024,
+        maximumFileSizeToCacheInBytes: 150 * 1024 * 1024,
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,tar,bin}'],
+        runtimeCaching: [
+          {
+            urlPattern: /.*\.(?:wasm|tar|bin)$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'wasm-tar-resources-cache',
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+            },
+          },
+        ],
       },
     }),
   ],

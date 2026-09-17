@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Sparkles, Sun, Moon, Wifi, WifiOff, Terminal, RefreshCw } from 'lucide-react';
+import { Play, Square, Sparkles, Sun, Moon, Wifi, WifiOff, Terminal } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
@@ -12,6 +12,7 @@ interface TitleBarProps {
 export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
   const {
     runActiveFile,
+    stopExecution,
     formatActiveFile,
     vmStatus,
     vmStatusMessage,
@@ -24,9 +25,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
   const isOnline = useNetworkStatus();
 
   return (
-    <header className="h-9 flex items-center justify-between px-3 border-b select-none text-xs bg-[#ebebeb] dark:bg-[#1e1e1e] border-[#d4d4d4] dark:border-[#252526] text-[#333333] dark:text-[#cccccc] transition-colors shrink-0">
+    <header className="h-9 w-full bg-[#f3f3f3] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#252526] flex items-center justify-between px-3 select-none text-xs text-[#333333] dark:text-[#cccccc] transition-colors shrink-0">
       {/* Esquerda: Logo e Nome */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-3">
         <div className="flex items-center space-x-1.5 font-semibold text-[#007acc] dark:text-[#3794ff]">
           <Terminal className="w-4 h-4" />
           <span className="tracking-wide font-bold">TheProg Editor</span>
@@ -35,29 +36,24 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
 
       {/* Direita: Ações principais */}
       <div className="flex items-center space-x-2">
-        {/* Botão Executar (F5) */}
-        <button
-          onClick={() => runActiveFile()}
-          disabled={vmStatus === 'running'}
-          title="Salvar, compilar e executar o código atual (F5)"
-          className={`flex items-center space-x-1 px-2.5 py-1 rounded font-medium text-xs text-white shadow-xs transition-all ${
-            vmStatus === 'running'
-              ? 'bg-amber-600 opacity-80 cursor-wait'
-              : 'bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer'
-          }`}
-        >
-          {vmStatus === 'running' ? (
-            <>
-              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-              <span>Executando...</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-3.5 h-3.5 fill-current" />
-              <span>Executar (F5)</span>
-            </>
-          )}
-        </button>
+        {/* Botão Dinâmico Executar / Stop (F5 / Kill) - Apenas Ícone */}
+        {vmStatus === 'running' ? (
+          <button
+            onClick={() => stopExecution()}
+            title="Interromper Execução (Ctrl+C / Kill)"
+            className="flex items-center justify-center w-7 h-7 rounded font-medium text-white shadow-xs transition-all bg-[#e51400] hover:bg-[#c91000] active:scale-95 cursor-pointer"
+          >
+            <Square className="w-3.5 h-3.5 fill-current" />
+          </button>
+        ) : (
+          <button
+            onClick={() => runActiveFile()}
+            title="Salvar e Executar Código (F5)"
+            className="flex items-center justify-center w-7 h-7 rounded font-medium text-white shadow-xs transition-all bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer"
+          >
+            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+          </button>
+        )}
 
         {/* Botão Formatar Código (Shift+Alt+F) */}
         <button
@@ -117,25 +113,24 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
           <span>Linux</span>
         </button>
 
-        {/* Badge Online / Offline em tempo real */}
+        {/* Badge Online / Offline em tempo real (Apenas Ícone) */}
         <div
           title={
             isOnline
-              ? 'Conectado à internet'
-              : 'Sem conexão com a internet. O TheProg Editor opera 100% offline via PWA e IndexedDB.'
+              ? 'Conectado à internet (Online)'
+              : 'Sem conexão com a internet (Offline). O TheProg Editor opera 100% autônomo via PWA.'
           }
-          className={`hidden md:flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+          className={`hidden md:flex items-center justify-center w-6 h-6 rounded border transition-colors ${
             isOnline
               ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800/50'
               : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800/50'
           }`}
         >
           {isOnline ? (
-            <Wifi className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+            <Wifi className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
           ) : (
-            <WifiOff className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+            <WifiOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
           )}
-          <span>{isOnline ? 'Online' : 'Offline'}</span>
         </div>
 
         {/* Alternador de Tema */}

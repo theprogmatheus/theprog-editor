@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { X, FileCode, Plus } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
@@ -7,6 +7,27 @@ import { useDialog } from '../../context/DialogContext';
 
 import { formatCode } from '../../utils/formatter';
 
+const getMonacoLanguage = (lang: string): string => {
+  switch (lang) {
+    case 'c': return 'c';
+    case 'cpp':
+    case 'h': return 'cpp';
+    case 'javascript': return 'javascript';
+    case 'typescript': return 'typescript';
+    case 'python': return 'python';
+    case 'html': return 'html';
+    case 'css': return 'css';
+    case 'json': return 'json';
+    case 'shell': return 'shell';
+    case 'rust': return 'rust';
+    case 'go': return 'go';
+    case 'java': return 'java';
+    case 'sql': return 'sql';
+    case 'markdown': return 'markdown';
+    default: return 'plaintext';
+  }
+};
+
 export const EditorArea: React.FC = () => {
   const {
     tabs,
@@ -14,6 +35,7 @@ export const EditorArea: React.FC = () => {
     activeFile,
     openFile,
     closeTab,
+    reorderTabs,
     updateFileContent,
     runActiveFile,
     formatActiveFile,
@@ -26,6 +48,33 @@ export const EditorArea: React.FC = () => {
   const { theme } = useTheme();
   const { showPrompt } = useDialog();
   const editorRef = useRef<any>(null);
+
+  // Estados de Drag and Drop de Abas
+  const [draggedTabIndex, setDraggedTabIndex] = useState<number | null>(null);
+  const [dragOverTabIndex, setDragOverTabIndex] = useState<number | null>(null);
+
+  // Menu de Contexto das Abas
+  const [tabContextMenu, setTabContextMenu] = useState<{
+    x: number;
+    y: number;
+    fileId: string;
+  } | null>(null);
+
+  // Fecha o menu de contexto de aba
+  useEffect(() => {
+    const handleClose = () => setTabContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setTabContextMenu(null);
+    };
+    if (tabContextMenu) {
+      window.addEventListener('click', handleClose);
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('click', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [tabContextMenu]);
 
   const handleCreateFilePrompt = async () => {
     const filename = await showPrompt({
@@ -147,7 +196,6 @@ export const EditorArea: React.FC = () => {
           updateFileContentRef.current(activeFileRef.current.id, editorRef.current.getValue());
         }
       }
-      // Atalhos de Zoom de Fonte (Ctrl + +, Ctrl + -, Ctrl + 0)
       if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
         e.preventDefault();
         increaseFontSizeRef.current();
@@ -165,58 +213,58 @@ export const EditorArea: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Se não houver abas abertas
-  if (!activeFile) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-[#616161] dark:text-[#858585] select-none p-6 transition-colors">
-        <FileCode className="w-16 h-16 text-[#cccccc] dark:text-[#333333] mb-4 stroke-1" />
-        <h2 className="text-base font-medium text-[#333333] dark:text-[#cccccc] mb-1">Nenhum arquivo aberto</h2>
-        <p className="text-xs text-[#777777] mb-4">Selecione um arquivo no explorador à esquerda ou crie um novo</p>
-        <button
-          onClick={handleCreateFilePrompt}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#007acc] text-white text-xs hover:bg-[#0062a3] cursor-pointer"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Criar Novo Arquivo</span>
-        </button>
-      </div>
-    );
-  }
-
-  const getMonacoLanguage = (lang: string): string => {
-    switch (lang) {
-      case 'c': return 'c';
-      case 'cpp':
-      case 'h': return 'cpp';
-      case 'javascript': return 'javascript';
-      case 'typescript': return 'typescript';
-      case 'python': return 'python';
-      case 'html': return 'html';
-      case 'css': return 'css';
-      case 'json': return 'json';
-      case 'shell': return 'shell';
-      case 'rust': return 'rust';
-      case 'go': return 'go';
-      case 'java': return 'java';
-      case 'sql': return 'sql';
-      case 'markdown': return 'markdown';
-      default: return 'plaintext';
-    }
-  };
-
-  const monacoLanguage = getMonacoLanguage(activeFile.language);
+  const monacoLanguage = activeFile ? getMonacoLanguage(activeFile.language) : 'plaintext';
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#1e1e1e] transition-colors">
-      {/* Barra de Abas */}
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#1e1e1e] transition-colors relative">
+      {/* Barra de Abas - SEMPRE VISÍVEL NO DOM */}
       <div className="h-9 flex items-center bg-[#ececec] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#202020] overflow-x-auto select-none no-scrollbar">
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const isActive = tab.fileId === activeFileId;
           return (
             <div
               key={tab.fileId}
+              draggable={true}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(index));
+                setDraggedTabIndex(index);
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                if (dragOverTabIndex !== index) {
+                  setDragOverTabIndex(index);
+                }
+              }}
+              onDragLeave={() => {
+                if (dragOverTabIndex === index) setDragOverTabIndex(null);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (draggedTabIndex !== null && draggedTabIndex !== index) {
+                  reorderTabs(draggedTabIndex, index);
+                }
+                setDraggedTabIndex(null);
+                setDragOverTabIndex(null);
+              }}
+              onDragEnd={() => {
+                setDraggedTabIndex(null);
+                setDragOverTabIndex(null);
+              }}
               onClick={() => openFile(tab.fileId)}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setTabContextMenu({ x: e.clientX, y: e.clientY, fileId: tab.fileId });
+              }}
               className={`h-full flex items-center space-x-2 px-3 text-xs border-r border-[#e5e5e5] dark:border-[#202020] cursor-pointer transition-colors group relative shrink-0 ${
+                draggedTabIndex === index ? 'opacity-40' : ''
+              } ${
+                dragOverTabIndex === index && draggedTabIndex !== index
+                  ? 'border-l-2 border-l-[#007acc] bg-[#e8f0fe] dark:bg-[#094771]/30'
+                  : ''
+              } ${
                 isActive
                   ? 'bg-white dark:bg-[#1e1e1e] text-black dark:text-white font-medium border-t-2 border-t-[#007acc]'
                   : 'bg-[#ececec] dark:bg-[#181818] text-[#616161] dark:text-[#969696] hover:bg-[#f3f3f3] dark:hover:bg-[#252526] hover:text-black dark:hover:text-[#cccccc]'
@@ -245,45 +293,107 @@ export const EditorArea: React.FC = () => {
             </div>
           );
         })}
+
+        {/* Botão sutil de Novo Arquivo na barra de abas */}
+        <button
+          onClick={handleCreateFilePrompt}
+          title="Criar Novo Arquivo"
+          className="h-full px-2.5 flex items-center justify-center text-[#777777] hover:text-black dark:hover:text-white hover:bg-[#f3f3f3] dark:hover:bg-[#252526] cursor-pointer transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
       </div>
 
-      {/* Editor Monaco */}
-      <div className="flex-1 w-full h-full relative">
-        <Editor
-          height="100%"
-          language={monacoLanguage}
-          theme={theme === 'dark' ? 'vs-dark' : 'light'}
-          value={activeFile.content || ''}
-          onChange={(value) => {
-            if (value !== undefined) {
-              updateFileContent(activeFile.id, value);
+      {/* Menu de Contexto Customizado da Aba */}
+      {tabContextMenu && (
+        <div
+          style={{ top: tabContextMenu.y, left: tabContextMenu.x }}
+          className="fixed z-50 min-w-[150px] py-1 bg-[#f3f3f3] dark:bg-[#252526] text-[#333333] dark:text-[#cccccc] rounded shadow-lg border border-[#cccccc] dark:border-[#454545] text-xs select-none"
+        >
+          <button
+            onClick={() => {
+              closeTab(tabContextMenu.fileId);
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <span>Fechar</span>
+          </button>
+          <button
+            onClick={() => {
+              tabs.forEach((t) => {
+                if (t.fileId !== tabContextMenu.fileId) closeTab(t.fileId);
+              });
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <span>Fechar Outras</span>
+          </button>
+          <button
+            onClick={() => {
+              tabs.forEach((t) => closeTab(t.fileId));
+              setTabContextMenu(null);
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <span>Fechar Todas</span>
+          </button>
+        </div>
+      )}
+
+      {/* Corpo Central: Monaco Editor OU Placeholder "Nenhum arquivo aberto" */}
+      {activeFile ? (
+        <div className="flex-1 w-full h-full relative">
+          <Editor
+            height="100%"
+            language={monacoLanguage}
+            theme={theme === 'dark' ? 'vs-dark' : 'light'}
+            value={activeFile.content || ''}
+            onChange={(value) => {
+              if (value !== undefined) {
+                updateFileContent(activeFile.id, value);
+              }
+            }}
+            onMount={handleEditorDidMount}
+            options={{
+              fontSize,
+              fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
+              fontLigatures: true,
+              tabSize: 4,
+              insertSpaces: true,
+              automaticLayout: true,
+              minimap: { enabled: true, side: 'right' },
+              scrollBeyondLastLine: false,
+              renderLineHighlight: 'all',
+              cursorBlinking: 'smooth',
+              smoothScrolling: true,
+              bracketPairColorization: { enabled: true },
+              lineNumbers: 'on',
+              renderWhitespace: 'selection',
+              fixedOverflowWidgets: true,
+            }}
+            loading={
+              <div className="flex items-center justify-center h-full text-xs text-[#888888]">
+                Carregando Editor...
+              </div>
             }
-          }}
-          onMount={handleEditorDidMount}
-          options={{
-            fontSize,
-            fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
-            fontLigatures: true,
-            tabSize: 4,
-            insertSpaces: true,
-            automaticLayout: true,
-            minimap: { enabled: true, side: 'right' },
-            scrollBeyondLastLine: false,
-            renderLineHighlight: 'all',
-            cursorBlinking: 'smooth',
-            smoothScrolling: true,
-            bracketPairColorization: { enabled: true },
-            lineNumbers: 'on',
-            renderWhitespace: 'selection',
-            fixedOverflowWidgets: true,
-          }}
-          loading={
-            <div className="flex items-center justify-center h-full text-xs text-[#888888]">
-              Carregando Editor...
-            </div>
-          }
-        />
-      </div>
+          />
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-[#616161] dark:text-[#858585] select-none p-6 transition-colors">
+          <FileCode className="w-16 h-16 text-[#cccccc] dark:text-[#333333] mb-4 stroke-1" />
+          <h2 className="text-base font-medium text-[#333333] dark:text-[#cccccc] mb-1">Nenhum arquivo aberto</h2>
+          <p className="text-xs text-[#777777] mb-4">Selecione um arquivo no explorador à esquerda ou crie um novo</p>
+          <button
+            onClick={handleCreateFilePrompt}
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#007acc] text-white text-xs hover:bg-[#0062a3] cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Criar Novo Arquivo</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 };

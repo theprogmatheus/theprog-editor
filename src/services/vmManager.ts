@@ -1,5 +1,8 @@
 import type { VMStatus } from '../types/editor';
 import { compileC, executeWasmBinary } from './cCompiler';
+import { executeJsCode } from './jsRunner';
+import { executePythonCode } from './pythonRunner';
+import { executeJavaCode } from './javaRunner';
 
 type OutputListener = (data: string) => void;
 type StatusListener = (status: VMStatus, message?: string) => void;
@@ -19,6 +22,7 @@ class VMManager {
   private savedCurrentInput: string = '';
   private isExecuting: boolean = false;
   private currentWasmController: { sendStdin: (line: string) => void; abort: () => void } | null = null;
+  private currentAbortController: { abort: () => void } | null = null;
   private isAwaitingProgramInput: boolean = false;
   private stdinInputBuffer: string = '';
   private activeFiles: Map<string, string> = new Map();
@@ -75,6 +79,30 @@ class VMManager {
     this.emitOutput(`\x1b[2J\x1b[3J\x1b[H${this.PROMPT}`);
   }
 
+  public stopExecution() {
+    if (!this.isExecuting && !this.isAwaitingProgramInput) return;
+    this.emitOutput(`^C\r\n${this.PROMPT}`);
+    if (this.currentWasmController) {
+      try {
+        this.currentWasmController.abort();
+      } catch {}
+      this.currentWasmController = null;
+    }
+    if (this.currentAbortController) {
+      try {
+        this.currentAbortController.abort();
+      } catch {}
+      this.currentAbortController = null;
+    }
+    this.isExecuting = false;
+    this.isAwaitingProgramInput = false;
+    this.stdinInputBuffer = '';
+    this.currentLine = '';
+    this.cursorPos = 0;
+    this.historyIndex = -1;
+    this.setStatus('ready', 'Execução interrompida');
+  }
+
   public async initV86(alpineUrl?: string) {
     if (this.v86Instance) return;
 
@@ -124,16 +152,7 @@ class VMManager {
     // Se o programa em execução estiver aguardando entrada (scanf / stdin)
     if (this.isAwaitingProgramInput) {
       if (data === '\x03') {
-        this.emitOutput('^C\r\n');
-        this.isAwaitingProgramInput = false;
-        this.stdinInputBuffer = '';
-        if (this.currentWasmController) {
-          this.currentWasmController.abort();
-          this.currentWasmController = null;
-        }
-        this.isExecuting = false;
-        this.setStatus('ready');
-        this.emitOutput(this.PROMPT);
+        this.stopExecution();
         return;
       }
 
@@ -169,18 +188,7 @@ class VMManager {
     if (this.isExecuting) {
       // Permite apenas Ctrl+C para interromper
       if (data === '\x03') {
-        this.emitOutput(`^C\r\n${this.PROMPT}`);
-        if (this.currentWasmController) {
-          this.currentWasmController.abort();
-          this.currentWasmController = null;
-        }
-        this.isExecuting = false;
-        this.isAwaitingProgramInput = false;
-        this.stdinInputBuffer = '';
-        this.currentLine = '';
-        this.cursorPos = 0;
-        this.historyIndex = -1;
-        this.setStatus('ready');
+        this.stopExecution();
       }
       return;
     }
@@ -535,6 +543,31 @@ class VMManager {
         return false;
       }
 
+      case 'node':
+      case 'js':
+      case 'ts-node': {
+        const jsFile = parts[1];
+        if (jsFile && this.activeFiles.has(jsFile)) {
+          await this.compileAndRun(jsFile, this.activeFiles.get(jsFile)!);
+          return true;
+        }
+        this.emitOutput(`${cmd}: cannot find module '${jsFile || ''}'\r\n`);
+        return false;
+      }
+
+      case 'javac':
+      case 'java': {
+        const jFile = parts[1];
+        const target = jFile?.endsWith('.java') ? jFile : `${jFile}.java`;
+        if (jFile && (this.activeFiles.has(jFile) || this.activeFiles.has(target))) {
+          const actual = this.activeFiles.has(jFile) ? jFile : target;
+          await this.compileAndRun(actual, this.activeFiles.get(actual)!);
+          return true;
+        }
+        this.emitOutput(`${cmd}: file or class not found: ${jFile || ''}\r\n`);
+        return false;
+      }
+
       case 'sh':
       case 'bash': {
         const shFile = parts[1];
@@ -603,6 +636,9 @@ class VMManager {
     const isC = lower.endsWith('.c');
     const isCpp = lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx');
     const isPython = lower.endsWith('.py');
+    const isJs = lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs');
+    const isTs = lower.endsWith('.ts') || lower.endsWith('.tsx');
+    const isJava = lower.endsWith('.java');
     const isShell = lower.endsWith('.sh') || lower.endsWith('.bash');
     const binaryName = filename.replace(/\.[^/.]+$/, '');
 
@@ -645,9 +681,11 @@ class VMManager {
             },
             onControllerReady: (ctrl) => {
               this.currentWasmController = ctrl;
+              this.currentAbortController = ctrl;
             },
           });
           this.currentWasmController = null;
+          this.currentAbortController = null;
           this.isAwaitingProgramInput = false;
           this.stdinInputBuffer = '';
           this.isExecuting = false;
@@ -672,8 +710,82 @@ class VMManager {
       this.emitOutput(`\r\x1b[K${this.PROMPT}python3 ${filename}\r\n`);
       if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
         this.v86Instance.serial0_send(`python3 ${filename}\n`);
-      } else {
-        this.emitOutput(`sh: python3: not found\r\n`);
+        this.isExecuting = false;
+        this.setStatus('ready');
+        return;
+      }
+      try {
+        const exitCode = await executePythonCode(filename, code, {
+          onOutput: (out) => this.emitOutput(out),
+          onControllerReady: (ctrl) => {
+            this.currentAbortController = ctrl;
+          },
+        });
+        this.currentAbortController = null;
+        this.isExecuting = false;
+        this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
+        this.emitOutput(this.PROMPT);
+        return;
+      } catch (err: any) {
+        this.emitOutput(`\r\n\x1b[31m${err?.message || err}\x1b[0m\r\n`);
+        this.currentAbortController = null;
+        this.isExecuting = false;
+        this.setStatus('error');
+        this.emitOutput(this.PROMPT);
+        return;
+      }
+    } else if (isJs || isTs) {
+      const runnerCmd = isTs ? 'ts-node' : 'node';
+      this.emitOutput(`\r\x1b[K${this.PROMPT}${runnerCmd} ${filename}\r\n`);
+      try {
+        const exitCode = await executeJsCode(filename, code, {
+          onOutput: (out) => this.emitOutput(out),
+          onControllerReady: (ctrl) => {
+            this.currentAbortController = ctrl;
+          },
+        });
+        this.currentAbortController = null;
+        this.isExecuting = false;
+        this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
+        this.emitOutput(this.PROMPT);
+        return;
+      } catch (err: any) {
+        this.emitOutput(`\r\n\x1b[31m${err?.message || err}\x1b[0m\r\n`);
+        this.currentAbortController = null;
+        this.isExecuting = false;
+        this.setStatus('error');
+        this.emitOutput(this.PROMPT);
+        return;
+      }
+    } else if (isJava) {
+      const classMatch = code.match(/(?:public\s+)?class\s+([A-Za-z0-9_]+)/);
+      const className = classMatch ? classMatch[1] : binaryName;
+      this.emitOutput(`\r\x1b[K${this.PROMPT}javac ${filename} && java ${className}\r\n`);
+      if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
+        this.v86Instance.serial0_send(`javac ${filename} && java ${className}\n`);
+        this.isExecuting = false;
+        this.setStatus('ready');
+        return;
+      }
+      try {
+        const exitCode = await executeJavaCode(filename, code, {
+          onOutput: (out) => this.emitOutput(out),
+          onControllerReady: (ctrl) => {
+            this.currentAbortController = ctrl;
+          },
+        });
+        this.currentAbortController = null;
+        this.isExecuting = false;
+        this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
+        this.emitOutput(this.PROMPT);
+        return;
+      } catch (err: any) {
+        this.emitOutput(`\r\n\x1b[31m${err?.message || err}\x1b[0m\r\n`);
+        this.currentAbortController = null;
+        this.isExecuting = false;
+        this.setStatus('error');
+        this.emitOutput(this.PROMPT);
+        return;
       }
     } else if (isShell) {
       this.emitOutput(`\r\x1b[K${this.PROMPT}bash ${filename}\r\n`);

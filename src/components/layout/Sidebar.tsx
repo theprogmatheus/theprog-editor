@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
+import JSZip from 'jszip';
 import {
   FilePlus,
   FolderPlus,
+  FolderDown,
   ChevronDown,
   ChevronRight,
   FileCode,
@@ -38,11 +40,16 @@ export const Sidebar: React.FC = () => {
     createNewFile,
     deleteFile,
     renameFile,
+    moveFileItem,
     isSidebarOpen,
     toggleSidebar,
     sidebarWidth,
     setSidebarWidth,
   } = useEditor();
+
+  const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
+  const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
+  const [isDragOverRoot, setIsDragOverRoot] = useState<boolean>(false);
 
   const [creatingState, setCreatingState] = useState<CreatingState | null>(null);
   const [newItemName, setNewItemName] = useState('');
@@ -182,6 +189,29 @@ export const Sidebar: React.FC = () => {
 
     if (confirmed) {
       await deleteFile(file.id);
+    }
+  };
+
+  const handleDownloadZip = async () => {
+    try {
+      const zip = new JSZip();
+      files.forEach((f) => {
+        if (!f.isFolder) {
+          const cleanPath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
+          zip.file(cleanPath, f.content || '');
+        }
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'theprog-workspace.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erro ao gerar ZIP:', err);
     }
   };
 
@@ -333,6 +363,39 @@ export const Sidebar: React.FC = () => {
             return (
               <div key={item.id}>
                 <div
+                  draggable={true}
+                  onDragStart={(e) => {
+                    e.stopPropagation();
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', item.id);
+                    setDraggedFileId(item.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    e.dataTransfer.dropEffect = 'move';
+                    if (draggedFileId && draggedFileId !== item.id) {
+                      setDragOverFolderId(item.id);
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    e.stopPropagation();
+                    if (dragOverFolderId === item.id) setDragOverFolderId(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (draggedFileId && draggedFileId !== item.id) {
+                      moveFileItem(draggedFileId, item.id);
+                      setExpandedFolders((prev) => new Set(prev).add(item.id));
+                    }
+                    setDraggedFileId(null);
+                    setDragOverFolderId(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedFileId(null);
+                    setDragOverFolderId(null);
+                  }}
                   onClick={() => toggleFolder(item.id)}
                   onContextMenu={(e) => {
                     e.preventDefault();
@@ -340,7 +403,13 @@ export const Sidebar: React.FC = () => {
                     setContextMenu({ x: e.clientX, y: e.clientY, file: item });
                   }}
                   style={{ paddingLeft: `${8 + depth * 14}px` }}
-                  className="group flex items-center justify-between pr-2 py-1 cursor-pointer transition-colors hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e] text-[#333333] dark:text-[#cccccc]"
+                  className={`group flex items-center justify-between pr-2 py-1 cursor-pointer transition-colors ${
+                    draggedFileId === item.id ? 'opacity-40' : ''
+                  } ${
+                    dragOverFolderId === item.id
+                      ? 'bg-[#007acc]/20 dark:bg-[#007acc]/30 ring-1 ring-[#007acc]'
+                      : 'hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e]'
+                  } text-[#333333] dark:text-[#cccccc]`}
                 >
                   <div className="flex items-center space-x-1 truncate flex-1 mr-1">
                     <span className="p-0.5 text-[#616161] dark:text-[#888888] shrink-0">
@@ -421,6 +490,17 @@ export const Sidebar: React.FC = () => {
           return (
             <div
               key={item.id}
+              draggable={true}
+              onDragStart={(e) => {
+                e.stopPropagation();
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', item.id);
+                setDraggedFileId(item.id);
+              }}
+              onDragEnd={() => {
+                setDraggedFileId(null);
+                setDragOverFolderId(null);
+              }}
               onClick={() => openFile(item.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -429,6 +509,8 @@ export const Sidebar: React.FC = () => {
               }}
               style={{ paddingLeft: `${18 + depth * 14}px` }}
               className={`group flex items-center justify-between pr-2 py-1 cursor-pointer transition-colors ${
+                draggedFileId === item.id ? 'opacity-40' : ''
+              } ${
                 isActive
                   ? 'bg-[#e4e6f1] dark:bg-[#37373d] text-black dark:text-white font-medium border-l-2 border-[#007acc]'
                   : 'hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e] text-[#333333] dark:text-[#cccccc]'
@@ -510,6 +592,13 @@ export const Sidebar: React.FC = () => {
             <FolderPlus className="w-3.5 h-3.5" />
           </button>
           <button
+            onClick={handleDownloadZip}
+            title="Baixar Workspace como ZIP (.zip)"
+            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
+          >
+            <FolderDown className="w-3.5 h-3.5" />
+          </button>
+          <button
             onClick={toggleSidebar}
             title="Esconder Barra Lateral"
             className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer ml-1"
@@ -520,7 +609,28 @@ export const Sidebar: React.FC = () => {
       </div>
 
       {/* Seção Workspace Hierárquica */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setIsDragOverRoot(true);
+        }}
+        onDragLeave={() => {
+          setIsDragOverRoot(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (draggedFileId) {
+            moveFileItem(draggedFileId, null);
+          }
+          setDraggedFileId(null);
+          setDragOverFolderId(null);
+          setIsDragOverRoot(false);
+        }}
+        className={`flex-1 overflow-y-auto transition-colors ${
+          isDragOverRoot && !dragOverFolderId ? 'bg-[#007acc]/10 ring-1 ring-[#007acc]' : ''
+        }`}
+      >
         <div
           onClick={() => setIsSectionOpen(!isSectionOpen)}
           className="flex items-center space-x-1 px-2 py-1 cursor-pointer font-bold text-[11px] text-[#333333] dark:text-[#aaaaaa] hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e]"
@@ -530,7 +640,7 @@ export const Sidebar: React.FC = () => {
         </div>
 
         {isSectionOpen && (
-          <div className="py-1">
+          <div className="py-1 min-h-[50px]">
             {renderTree(null, 0)}
           </div>
         )}

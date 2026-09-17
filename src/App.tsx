@@ -11,6 +11,7 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { InitVMModal } from './components/modals/InitVMModal';
 import { HelpModal } from './components/modals/HelpModal';
 import { LinuxLoadingScreen } from './components/common/LinuxLoadingScreen';
+import { GlobalContextMenu } from './components/common/GlobalContextMenu';
 
 const MainLayout: React.FC = () => {
   const [activeActivityTab, setActiveActivityTab] = useState<ActivityTab>('explorer');
@@ -61,6 +62,12 @@ const MainLayout: React.FC = () => {
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <InitVMModal isOpen={isVMModalOpen} onClose={() => setIsVMModalOpen(false)} />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
+
+      {/* Menu de Contexto Global (Substitui menu nativo do browser) */}
+      <GlobalContextMenu
+        onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenHelp={() => setIsHelpOpen(true)}
+      />
 
       {/* Loading bloqueante enquanto Linux inicializa */}
       <LinuxLoadingScreen isLoading={isLinuxLoading} statusMessage={vmStatusMessage} />
