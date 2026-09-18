@@ -1,5 +1,4 @@
 import { commands } from '@yowasp/clang';
-import { WASI, File, OpenFile, PreopenDirectory } from '@bjorn3/browser_wasi_shim';
 
 const THEPROG_RUNTIME_HEADER = `
 #ifndef __THEPROG_RUNTIME_H
@@ -222,118 +221,89 @@ export async function executeWasmBinary(
   const onNeedStdin = typeof callbacks === 'function' ? undefined : callbacks.onNeedStdin;
   const onControllerReady = typeof callbacks === 'function' ? undefined : callbacks.onControllerReady;
 
-  // Execução via Web Worker com SharedArrayBuffer e Atomics.wait para suporte interativo ao scanf
-  if (typeof SharedArrayBuffer !== 'undefined' && typeof Worker !== 'undefined') {
-    return new Promise((resolve) => {
-      let isFinished = false;
+  return new Promise((resolve) => {
+    let isFinished = false;
 
-      const worker = new Worker(new URL('../workers/wasmWorker.ts', import.meta.url), {
-        type: 'module',
-      });
+    // SEMPRE executa dentro de Web Worker isolado em background!
+    // NUNCA executa WASM na thread principal (UI thread), garantindo que loops infinitos
+    // (ex: while(1)) jamais travem a aba do navegador e possam ser interrompidos pelo usuário (Ctrl+C).
+    const worker = new Worker(new URL('../workers/wasmWorker.ts', import.meta.url), {
+      type: 'module',
+    });
 
-      const sab = new SharedArrayBuffer(65536);
-      const control = new Int32Array(sab, 0, 2);
-      const data = new Uint8Array(sab, 8);
+    const hasSab = typeof SharedArrayBuffer !== 'undefined';
+    let sab: SharedArrayBuffer | undefined;
+    let control: Int32Array | undefined;
+    let data: Uint8Array | undefined;
 
-      const cleanup = () => {
-        if (!isFinished) {
-          isFinished = true;
-          try {
-            worker.terminate();
-          } catch (e) {
-            // ignore
-          }
+    if (hasSab) {
+      sab = new SharedArrayBuffer(65536);
+      control = new Int32Array(sab, 0, 2);
+      data = new Uint8Array(sab, 8);
+    }
+
+    const cleanup = () => {
+      if (!isFinished) {
+        isFinished = true;
+        try {
+          worker.terminate();
+        } catch (e) {
+          // ignore
         }
-      };
+      }
+    };
 
-      const controller = {
-        sendStdin: (line: string) => {
-          if (isFinished) return;
+    const controller = {
+      sendStdin: (line: string) => {
+        if (isFinished) return;
+        if (hasSab && control && data) {
           const enc = new TextEncoder().encode(line);
           data.set(enc.subarray(0, 65520));
           Atomics.store(control, 1, Math.min(enc.length, 65520));
           Atomics.store(control, 0, 1); // 1 = INPUT_READY
           Atomics.notify(control, 0);
-        },
-        abort: () => {
-          if (isFinished) return;
+        }
+      },
+      abort: () => {
+        if (isFinished) return;
+        if (hasSab && control) {
           Atomics.store(control, 0, -1); // -1 = ABORT
           Atomics.notify(control, 0);
-          cleanup();
-        },
-      };
-
-      if (onControllerReady) {
-        onControllerReady(controller);
-      }
-
-      worker.onmessage = (e: MessageEvent) => {
-        const msg = e.data;
-        if (msg.type === 'stdout') {
-          onOutput(msg.text.replace(/\r?\n/g, '\r\n'));
-        } else if (msg.type === 'stdin_need') {
-          if (onNeedStdin) onNeedStdin();
-        } else if (msg.type === 'exit') {
-          cleanup();
-          resolve(typeof msg.code === 'number' ? msg.code : 0);
-        } else if (msg.type === 'error') {
-          onOutput(`\r\n\x1b[31mErro de execução: ${msg.error}\x1b[0m\r\n`);
-          cleanup();
-          resolve(1);
         }
-      };
-
-      worker.onerror = (err) => {
-        onOutput(`\r\n\x1b[31mErro no worker: ${err?.message || 'Falha na execução'}\x1b[0m\r\n`);
         cleanup();
-        resolve(1);
-      };
+      },
+    };
 
-      worker.postMessage({ wasmBinary, sab, binaryName });
-    });
-  }
-
-  // Fallback caso SharedArrayBuffer não esteja disponível
-  return runOnMainThread(binaryName, wasmBinary, onOutput);
-}
-
-async function runOnMainThread(
-  binaryName: string,
-  wasmBinary: Uint8Array,
-  onOutput: (text: string) => void
-): Promise<number> {
-  try {
-    class CaptureOutput extends OpenFile {
-      constructor() {
-        super(new File([]));
-      }
-      override fd_write(data: Uint8Array) {
-        const text = new TextDecoder().decode(data);
-        onOutput(text.replace(/\r?\n/g, '\r\n'));
-        return { ret: 0, nwritten: data.byteLength };
-      }
+    if (onControllerReady) {
+      onControllerReady(controller);
     }
 
-    const fds = [
-      new OpenFile(new File([])), // stdin
-      new CaptureOutput(),        // stdout
-      new CaptureOutput(),        // stderr
-      new PreopenDirectory('.', new Map()),
-    ];
+    worker.onmessage = (e: MessageEvent) => {
+      const msg = e.data;
+      if (msg.type === 'stdout') {
+        onOutput(msg.text.replace(/\r?\n/g, '\r\n'));
+      } else if (msg.type === 'stdin_need') {
+        if (onNeedStdin) onNeedStdin();
+      } else if (msg.type === 'exit') {
+        cleanup();
+        resolve(typeof msg.code === 'number' ? msg.code : 0);
+      } else if (msg.type === 'error') {
+        onOutput(`\r\n\x1b[31mErro de execução: ${msg.error}\x1b[0m\r\n`);
+        cleanup();
+        resolve(1);
+      }
+    };
 
-    const wasi = new WASI([`./${binaryName}`], [], fds);
-    const wasmModule = await WebAssembly.compile(wasmBinary as unknown as BufferSource);
-    const instance = await WebAssembly.instantiate(wasmModule, {
-      wasi_snapshot_preview1: wasi.wasiImport,
-    });
+    worker.onerror = (err) => {
+      onOutput(`\r\n\x1b[31mErro no worker: ${err?.message || 'Falha na execução'}\x1b[0m\r\n`);
+      cleanup();
+      resolve(1);
+    };
 
-    const exitCode = wasi.start(instance as any);
-    return typeof exitCode === 'number' ? exitCode : 0;
-  } catch (err: any) {
-    onOutput(`\r\n\x1b[31mErro de execução: ${err?.message || err}\x1b[0m\r\n`);
-    return 1;
-  }
+    worker.postMessage({ wasmBinary, sab, binaryName });
+  });
 }
+
 
 export async function compileAndExecuteC(
   sources: string[],

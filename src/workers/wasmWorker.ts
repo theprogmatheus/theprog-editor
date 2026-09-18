@@ -3,8 +3,9 @@ import { wasi, WASI, File, OpenFile, PreopenDirectory } from '@bjorn3/browser_wa
 self.onmessage = async (event: MessageEvent) => {
   const { wasmBinary, sab, binaryName } = event.data;
 
-  const control = new Int32Array(sab, 0, 2);
-  const data = new Uint8Array(sab, 8);
+  const hasSab = Boolean(sab && typeof SharedArrayBuffer !== 'undefined' && sab instanceof SharedArrayBuffer);
+  const control = hasSab && sab ? new Int32Array(sab, 0, 2) : null;
+  const data = hasSab && sab ? new Uint8Array(sab, 8) : null;
 
   class WorkerStdin extends OpenFile {
     private buffer: Uint8Array = new Uint8Array(0);
@@ -25,32 +26,42 @@ self.onmessage = async (event: MessageEvent) => {
         return { ret: 0, data: chunk };
       }
 
-      // Buffer está vazio: avisa a thread principal para receber digitação do usuário
-      self.postMessage({ type: 'stdin_need' });
+      // Se temos SharedArrayBuffer e Atomics, pausamos sincronicamente a thread do worker:
+      if (hasSab && control && data) {
+        // Buffer está vazio: avisa a thread principal para receber digitação do usuário
+        self.postMessage({ type: 'stdin_need' });
 
-      // Pausa sincronicamente até a thread principal gravar e notificar
-      Atomics.wait(control, 0, 0);
+        // Pausa sincronicamente até a thread principal gravar e notificar
+        Atomics.wait(control, 0, 0);
 
-      const status = Atomics.load(control, 0);
-      if (status === -1) {
-        // Interrompido por Ctrl+C
+        const status = Atomics.load(control, 0);
+        if (status === -1) {
+          // Interrompido por Ctrl+C
+          return { ret: 0, data: new Uint8Array(0) };
+        }
+
+        if (status === 1) {
+          const len = Atomics.load(control, 1);
+          const received = new Uint8Array(len);
+          received.set(data.subarray(0, len));
+          Atomics.store(control, 0, 0);
+
+          this.buffer = received;
+          this.pos = 0;
+
+          const chunk = this.buffer.slice(0, size);
+          this.pos = chunk.length;
+          return { ret: 0, data: chunk };
+        }
+
         return { ret: 0, data: new Uint8Array(0) };
       }
 
-      if (status === 1) {
-        const len = Atomics.load(control, 1);
-        const received = new Uint8Array(len);
-        received.set(data.subarray(0, len));
-        Atomics.store(control, 0, 0);
-
-        this.buffer = received;
-        this.pos = 0;
-
-        const chunk = this.buffer.slice(0, size);
-        this.pos = chunk.length;
-        return { ret: 0, data: chunk };
-      }
-
+      // Fallback amigável caso SharedArrayBuffer ainda não esteja ativo
+      self.postMessage({
+        type: 'stdout',
+        text: '\r\n\x1b[33m[Aviso: Entrada interativa (scanf/cin) requer Cross-Origin Isolation (SharedArrayBuffer). Ative recarregando a página.]\x1b[0m\r\n',
+      });
       return { ret: 0, data: new Uint8Array(0) };
     }
   }

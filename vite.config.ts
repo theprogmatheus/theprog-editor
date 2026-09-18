@@ -26,7 +26,11 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
+      injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'v86/**'],
       manifest: {
         name: 'TheProg Editor - IDE Offline',
@@ -46,21 +50,9 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      injectManifest: {
         maximumFileSizeToCacheInBytes: 150 * 1024 * 1024,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,tar,bin}'],
-        runtimeCaching: [
-          {
-            urlPattern: /.*\.(?:wasm|tar|bin)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'wasm-tar-resources-cache',
-              cacheableResponse: {
-                statuses: [0, 200],
-              },
-            },
-          },
-        ],
       },
     }),
   ],
