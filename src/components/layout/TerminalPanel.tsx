@@ -234,7 +234,7 @@ export const TerminalPanel: React.FC = () => {
   return (
     <div
       className={`flex flex-col border-t border-[#e5e5e5] dark:border-[#252526] bg-white dark:bg-[#1e1e1e] transition-all duration-150 relative ${
-        isTerminalMinimized ? 'h-8' : isMaximized ? 'h-[75vh]' : 'h-64'
+        isTerminalMinimized ? 'h-8' : isMaximized ? 'h-[75vh]' : 'h-52 sm:h-64'
       }`}
     >
       {/* Topo do painel de Console */}

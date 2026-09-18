@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import JSZip from 'jszip';
 import type { FileItem, EditorTab, VMStatus, SupportedLanguage } from '../types/editor';
 import { loadAllFiles, saveFileToStorage, deleteFileFromStorage } from '../services/storage';
 import { vmManager } from '../services/vmManager';
@@ -39,6 +40,7 @@ interface EditorContextType {
   createNewFile: (name: string, isFolder?: boolean, parentId?: string | null) => Promise<string>;
   deleteFile: (fileId: string) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<void>;
+  downloadWorkspaceZip: () => Promise<void>;
   runActiveFile: (overrideContent?: string) => void;
   formatActiveFile: () => void;
   resetTerminal: () => void;
@@ -70,7 +72,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [compilerProgress, setCompilerProgress] = useState<CompilerProgress>(getCompilerProgress());
   const [isTerminalMinimized, setIsTerminalMinimized] = useState<boolean>(true);
   const [isLinuxLoading, setIsLinuxLoading] = useState<boolean>(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const saved = localStorage.getItem('theprog_sidebar_width');
     return saved ? Math.max(180, Math.min(600, parseInt(saved, 10))) : 240;
@@ -181,7 +183,31 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return 'plaintext';
   };
 
-  // Carrega arquivos salvos na inicialização e simula boot do linux
+  // Download do Workspace completo como arquivo .zip
+  const downloadWorkspaceZip = useCallback(async () => {
+    try {
+      const zip = new JSZip();
+      files.forEach((f) => {
+        if (!f.isFolder) {
+          const cleanPath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
+          zip.file(cleanPath, f.content || '');
+        }
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'theprog-workspace.zip';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Erro ao gerar ZIP:', err);
+    }
+  }, [files]);
+
+  // Carrega arquivos salvos na inicialização (sem abrir nenhum documento automaticamente)
   useEffect(() => {
     loadAllFiles().then((loadedFiles) => {
       setFiles(loadedFiles);
@@ -190,19 +216,6 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           vmManager.syncFile(f.name, f.content);
         }
       });
-
-      const mainFile = loadedFiles.find((f) => f.name === 'main.c') || loadedFiles.find((f) => !f.isFolder);
-      if (mainFile) {
-        setActiveFileId(mainFile.id);
-        setTabs([
-          {
-            fileId: mainFile.id,
-            filePath: mainFile.path,
-            title: mainFile.name,
-            language: mainFile.language,
-          },
-        ]);
-      }
 
       setTimeout(() => {
         setIsLinuxLoading(false);
@@ -512,18 +525,107 @@ function getFilesInProjectScope(files: FileItem[], activeFile: FileItem): FileIt
         setTabs((prev) => prev.map((t) => (t.fileId === activeFile.id ? { ...t, isDirty: false } : t)));
       }
 
-      // Escopo isolado de diretório: compila apenas arquivos da pasta do arquivo ativo
-      const folderFiles = new Map<string, string>();
+      // Escopo isolado de diretório: compila e executa com suporte completo ao sistema de arquivos WASI
       const scopedFiles = getFilesInProjectScope(files, activeFile);
+      const parentFolder = activeFile.parentId ? files.find((f) => f.id === activeFile.parentId) : null;
+      const baseDirPath = parentFolder ? parentFolder.path : '';
+
+      const folderFiles = new Map<string, string>();
+      const encoder = new TextEncoder();
+      const vfsFiles: { path: string; data: Uint8Array }[] = [];
+
       for (const f of scopedFiles) {
-        if (f.id === activeFile.id) {
-          folderFiles.set(f.name, codeToRun);
-        } else {
-          folderFiles.set(f.name, f.content || '');
-        }
+        const content = f.id === activeFile.id ? codeToRun : (f.content || '');
+        const relPath = baseDirPath && f.path.startsWith(baseDirPath + '/')
+          ? f.path.slice(baseDirPath.length + 1)
+          : (f.path.startsWith('/') ? f.path.slice(1) : f.name);
+
+        folderFiles.set(relPath, content);
+        vfsFiles.push({
+          path: relPath,
+          data: encoder.encode(content),
+        });
       }
 
-      vmManager.runCode(activeFile.name, folderFiles, compilerFlags);
+      // Sincronização bidirecional do sistema de arquivos após execução WASI
+      const handleFilesUpdated = (syncedFiles: { path: string; data: Uint8Array; isNew?: boolean }[]) => {
+        const decoder = new TextDecoder('utf-8', { fatal: false });
+
+        setFiles((prevFiles) => {
+          let updatedFiles = [...prevFiles];
+          const filesToPersist: FileItem[] = [];
+
+          for (const synced of syncedFiles) {
+            const decodedContent = decoder.decode(synced.data);
+            const targetFullPath = baseDirPath ? `${baseDirPath}/${synced.path}` : `/${synced.path}`;
+
+            const existingIndex = updatedFiles.findIndex((f) => !f.isFolder && f.path === targetFullPath);
+
+            if (existingIndex !== -1) {
+              // Atualiza arquivo existente
+              const existingFile = updatedFiles[existingIndex];
+              const modifiedFile: FileItem = {
+                ...existingFile,
+                content: decodedContent,
+                updatedAt: Date.now(),
+              };
+              updatedFiles[existingIndex] = modifiedFile;
+              filesToPersist.push(modifiedFile);
+            } else {
+              // Cria novo arquivo e diretórios intermediários necessários
+              const parts = synced.path.split('/').filter(Boolean);
+              let currentParentId: string | null = activeFile.parentId;
+              let currentPathAcc = baseDirPath;
+
+              for (let i = 0; i < parts.length - 1; i++) {
+                const dirName = parts[i];
+                const dirFullPath = currentPathAcc ? `${currentPathAcc}/${dirName}` : `/${dirName}`;
+                let dirItem = updatedFiles.find((f) => f.isFolder && f.path === dirFullPath);
+                if (!dirItem) {
+                  const newDirId = 'f-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+                  dirItem = {
+                    id: newDirId,
+                    name: dirName,
+                    path: dirFullPath,
+                    isFolder: true,
+                    parentId: currentParentId,
+                    language: 'plaintext',
+                    updatedAt: Date.now(),
+                  };
+                  updatedFiles.push(dirItem);
+                  filesToPersist.push(dirItem);
+                }
+                currentParentId = dirItem.id;
+                currentPathAcc = dirFullPath;
+              }
+
+              const fileName = parts[parts.length - 1];
+              const newFileId = 'f-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+              const newFileItem: FileItem = {
+                id: newFileId,
+                name: fileName,
+                path: targetFullPath,
+                isFolder: false,
+                parentId: currentParentId,
+                language: detectLanguage(fileName),
+                updatedAt: Date.now(),
+                content: decodedContent,
+              };
+
+              updatedFiles.push(newFileItem);
+              filesToPersist.push(newFileItem);
+            }
+          }
+
+          setTimeout(() => {
+            filesToPersist.forEach((f) => saveFileToStorage(f));
+          }, 0);
+
+          return updatedFiles;
+        });
+      };
+
+      vmManager.runCode(activeFile.name, folderFiles, compilerFlags, vfsFiles, handleFilesUpdated);
     },
     [activeFile, files, isSystemReady, systemProgressPercent, compilerFlags]
   );
@@ -648,6 +750,7 @@ function getFilesInProjectScope(files: FileItem[], activeFile: FileItem): FileIt
         createNewFile,
         deleteFile,
         renameFile,
+        downloadWorkspaceZip,
         runActiveFile,
         formatActiveFile,
         resetTerminal,

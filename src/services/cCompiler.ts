@@ -212,6 +212,8 @@ export interface ExecutionCallbacks {
   onOutput: (text: string) => void;
   onNeedStdin?: () => void;
   onControllerReady?: (controller: { sendStdin: (line: string) => void; abort: () => void }) => void;
+  vfsFiles?: { path: string; data: Uint8Array }[];
+  onFsSync?: (files: { path: string; data: Uint8Array; isNew?: boolean }[]) => void;
 }
 
 export async function executeWasmBinary(
@@ -222,6 +224,8 @@ export async function executeWasmBinary(
   const onOutput = typeof callbacks === 'function' ? callbacks : callbacks.onOutput;
   const onNeedStdin = typeof callbacks === 'function' ? undefined : callbacks.onNeedStdin;
   const onControllerReady = typeof callbacks === 'function' ? undefined : callbacks.onControllerReady;
+  const vfsFiles = typeof callbacks === 'function' ? undefined : callbacks.vfsFiles;
+  const onFsSync = typeof callbacks === 'function' ? undefined : callbacks.onFsSync;
 
   return new Promise((resolve) => {
     let isFinished = false;
@@ -249,7 +253,7 @@ export async function executeWasmBinary(
         isFinished = true;
         try {
           worker.terminate();
-        } catch (e) {
+        } catch {
           // ignore
         }
       }
@@ -286,6 +290,8 @@ export async function executeWasmBinary(
         onOutput(msg.text.replace(/\r?\n/g, '\r\n'));
       } else if (msg.type === 'stdin_need') {
         if (onNeedStdin) onNeedStdin();
+      } else if (msg.type === 'fs_sync') {
+        if (onFsSync) onFsSync(msg.files);
       } else if (msg.type === 'exit') {
         cleanup();
         resolve(typeof msg.code === 'number' ? msg.code : 0);
@@ -302,7 +308,7 @@ export async function executeWasmBinary(
       resolve(1);
     };
 
-    worker.postMessage({ wasmBinary, sab, binaryName });
+    worker.postMessage({ wasmBinary, sab, binaryName, initialFiles: vfsFiles || [] });
   });
 }
 

@@ -1,9 +1,9 @@
-# 💻 TheProg Editor (v0.2.0)
+# 💻 TheProg Editor (v0.3.0)
 
 > **IDE Web PWA 100% Offline com compilação e execução nativa em C e C++ via WebAssembly.**
 
 [![Produção](https://img.shields.io/badge/Acessar-matheus.eti.br%2Ftheprog--editor-007acc?style=flat&logo=googlechrome&logoColor=white)](https://matheus.eti.br/theprog-editor)
-![Version](https://img.shields.io/badge/version-0.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)
 ![PWA](https://img.shields.io/badge/PWA-100%25_Offline-emerald.svg)
 ![Language](https://img.shields.io/badge/Language-C%20%2F%20C%2B%2B-00599c.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
@@ -15,15 +15,17 @@ O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda 
 ## 🚀 Principais Recursos
 
 - **Compilador Clang Real no Navegador:** Compilação autêntica em WebAssembly através do `@yowasp/clang` com suporte a C11/C17 e C++17/C++20.
+- **Sistema de Arquivos Virtual Bidirecional (WASI):** Suporte autêntico e completo a manipulação de arquivos com `fopen()`, `fread()`, `fwrite()`, `fprintf()`, `fscanf()`, binários e texto. Arquivos criados ou modificados pelo seu código em C aparecem instantaneamente na árvore de arquivos do editor e são persistidos no IndexedDB, respeitando a hierarquia de diretórios!
+- **100% Pronto para Ensino de AP1, AP2, ED1 e ED2:** Suporte nativo a ponteiros, estruturas heterogêneas (`struct`), alocação dinâmica (`malloc`/`free`), listas encadeadas, árvores binárias e persistência em arquivos de dados.
 - **Console de Execução Autêntico & Minimalista:** Sem emulações ou shells simulados. O painel inferior atua como um console de execução limpo, exibindo exclusivamente as entradas e saídas do seu programa e diagnósticos reais do compilador.
-- **Início Minimizado & Foco Automático (F5):** O console inicia discretamente recolhido para maximizar a área de edição e se expande automaticamente ao executar (`F5` ou botão Executar), transferindo o foco do teclado imediatamente para digitação de `scanf()` ou `cin`.
+- **Início Minimizado & Foco Automático (F5):** O console e a barra de arquivos iniciam recolhidos para maximizar a área de trabalho. Ao executar (`F5` ou botão Executar), o console se expande e o foco do teclado vai imediatamente para a digitação (`scanf()` / `cin`).
+- **Design 100% Responsivo e Suporte Mobile:** Interface moderna adaptada para celulares e tablets, com barra lateral gaveta (drawer overlay com backdrop), minimap responsivo no Monaco e barra de abas com scroll touch.
 - **Isolamento de Escopo por Diretório:** Cada pasta no gerenciador de arquivos atua como um escopo autônomo de projeto. Arquivos de exercícios ou pastas diferentes jamais interferem na compilação uns dos outros.
 - **Parâmetros de Compilação Customizáveis (Clang Flags):** Configuração direta de flags (`-O2`, `-Wall`, `-std=c17`, `-g`) pelo modal de configurações, com presets rápidos em um clique.
 - **Entrada Interativa com `stdin` em Tempo Real:** Suporte completo a chamadas bloqueantes como `scanf()`, `getchar()`, `cin` e `fgets()` executadas em Web Worker com sincronização por `SharedArrayBuffer` e `Atomics`.
 - **Editor Baseado no Monaco (VS Code):** Destaque de sintaxe, indentação automática, bracket matching, controle dinâmico do tamanho da fonte e atalhos de teclado (`F5`, `Ctrl+S`, `Ctrl+F`).
 - **Formatação de Código Industrial:** Integração nativa com **Clang-Format** em WebAssembly (`@wasm-fmt/clang-format`), permitindo formatar o código com `Shift + Alt + F`.
-- **Gerenciador de Arquivos Completo:** Criação, exclusão, renomeação e organização de arquivos e subdiretórios via Drag & Drop, além de exportação completa do workspace em arquivo `.zip`.
-- **Menus de Contexto Customizados & Exclusivos:** Menus próprios para a árvore de arquivos, abas e console de execução, com fechamento coordenado automático.
+- **Gerenciador de Arquivos Completo:** Criação, exclusão, renomeação e organização de arquivos e subdiretórios via Drag & Drop, com botão de download do projeto em ZIP acessível na barra de atividades lateral.
 - **Armazenamento 100% Local (IndexedDB):** Todos os arquivos, códigos e preferências são salvos localmente no navegador de forma durável.
 - **PWA Instalável e Autônomo:** Instalável em computadores e celulares, funcionando em janela própria mesmo totalmente sem internet.
 

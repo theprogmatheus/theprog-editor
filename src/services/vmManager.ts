@@ -162,7 +162,9 @@ class VMManager {
   public async runCode(
     mainFilename: string,
     folderFiles: Map<string, string>,
-    extraCompilerArgs: string[] = []
+    extraCompilerArgs: string[] = [],
+    vfsFiles?: { path: string; data: Uint8Array }[],
+    onFilesUpdated?: (files: { path: string; data: Uint8Array; isNew?: boolean }[]) => void
   ) {
     if (this.isExecuting) {
       this.stopExecution();
@@ -236,6 +238,8 @@ class VMManager {
           this.currentWasmController = ctrl;
           this.currentAbortController = ctrl;
         },
+        vfsFiles,
+        onFsSync: onFilesUpdated,
       });
 
       this.currentWasmController = null;

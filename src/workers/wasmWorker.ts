@@ -1,7 +1,90 @@
-import { wasi, WASI, File, OpenFile, PreopenDirectory } from '@bjorn3/browser_wasi_shim';
+import { wasi, WASI, File, Directory, Inode, OpenFile, PreopenDirectory } from '@bjorn3/browser_wasi_shim';
+
+interface InitialVfsFile {
+  path: string;
+  data: Uint8Array;
+}
+
+interface SyncedVfsFile {
+  path: string;
+  data: Uint8Array;
+  isNew?: boolean;
+}
+
+function buildVfs(files: InitialVfsFile[] = []): Map<string, Inode> {
+  const rootContents = new Map<string, Inode>();
+
+  for (const file of files) {
+    const cleanPath = file.path.replace(/^\.?\//, '').trim();
+    if (!cleanPath) continue;
+
+    const parts = cleanPath.split('/').filter(Boolean);
+    if (parts.length === 0) continue;
+
+    let currentDirMap = rootContents;
+    for (let i = 0; i < parts.length - 1; i++) {
+      const part = parts[i];
+      let entry = currentDirMap.get(part);
+      if (!entry || !(entry instanceof Directory)) {
+        const newDir = new Directory(new Map());
+        currentDirMap.set(part, newDir);
+        entry = newDir;
+      }
+      currentDirMap = (entry as Directory).contents;
+    }
+
+    const filename = parts[parts.length - 1];
+    currentDirMap.set(filename, new File(file.data));
+  }
+
+  return rootContents;
+}
+
+function extractModifiedOrNewFiles(
+  dirMap: Map<string, Inode>,
+  originals: Map<string, Uint8Array>,
+  currentPath = ''
+): SyncedVfsFile[] {
+  const result: SyncedVfsFile[] = [];
+
+  for (const [name, inode] of dirMap.entries()) {
+    const relPath = currentPath ? `${currentPath}/${name}` : name;
+    if (inode instanceof File) {
+      const orig = originals.get(relPath);
+      let isModified = false;
+      let isNew = false;
+
+      if (!orig) {
+        isModified = true;
+        isNew = true;
+      } else if (orig.length !== inode.data.length) {
+        isModified = true;
+      } else {
+        for (let i = 0; i < orig.length; i++) {
+          if (orig[i] !== inode.data[i]) {
+            isModified = true;
+            break;
+          }
+        }
+      }
+
+      if (isModified) {
+        result.push({
+          path: relPath,
+          data: inode.data,
+          isNew,
+        });
+      }
+    } else if (inode instanceof Directory) {
+      result.push(...extractModifiedOrNewFiles(inode.contents, originals, relPath));
+    }
+  }
+
+  return result;
+}
 
 self.onmessage = async (event: MessageEvent) => {
-  const { wasmBinary, sab, binaryName } = event.data;
+  const { wasmBinary, sab, binaryName, initialFiles } = event.data;
 
   const hasSab = Boolean(sab && typeof SharedArrayBuffer !== 'undefined' && sab instanceof SharedArrayBuffer);
   const control = hasSab && sab ? new Int32Array(sab, 0, 2) : null;
@@ -83,11 +166,22 @@ self.onmessage = async (event: MessageEvent) => {
   }
 
   try {
+    const rawFiles: InitialVfsFile[] = Array.isArray(initialFiles) ? initialFiles : [];
+    const originalFilesMap = new Map<string, Uint8Array>();
+    for (const f of rawFiles) {
+      const cleanPath = f.path.replace(/^\.?\//, '').trim();
+      if (cleanPath) {
+        originalFilesMap.set(cleanPath, f.data);
+      }
+    }
+
+    const rootContents = buildVfs(rawFiles);
+
     const fds = [
       new WorkerStdin(),
       new WorkerStdout(),
       new WorkerStdout(),
-      new PreopenDirectory('.', new Map()),
+      new PreopenDirectory('.', rootContents),
     ];
 
     const wasi = new WASI([`./${binaryName}`], [], fds);
@@ -97,6 +191,13 @@ self.onmessage = async (event: MessageEvent) => {
     });
 
     const exitCode = wasi.start(instance as any);
+
+    // Extrai arquivos criados ou modificados durante a execução do programa
+    const modifiedFiles = extractModifiedOrNewFiles(rootContents, originalFilesMap);
+    if (modifiedFiles.length > 0) {
+      self.postMessage({ type: 'fs_sync', files: modifiedFiles });
+    }
+
     self.postMessage({ type: 'exit', code: typeof exitCode === 'number' ? exitCode : 0 });
   } catch (err: any) {
     self.postMessage({ type: 'error', error: err?.message || String(err) });

@@ -1,9 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import JSZip from 'jszip';
 import {
   FilePlus,
   FolderPlus,
-  FolderDown,
   ChevronDown,
   ChevronRight,
   FileCode,
@@ -41,10 +39,28 @@ export const Sidebar: React.FC = () => {
     renameFile,
     moveFileItem,
     isSidebarOpen,
+    setIsSidebarOpen,
     toggleSidebar,
     sidebarWidth,
     setSidebarWidth,
   } = useEditor();
+
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleOpenFile = (fileId: string) => {
+    openFile(fileId);
+    if (isMobile) {
+      setIsSidebarOpen(false);
+    }
+  };
 
   const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
@@ -190,29 +206,6 @@ export const Sidebar: React.FC = () => {
 
     if (confirmed) {
       await deleteFile(file.id);
-    }
-  };
-
-  const handleDownloadZip = async () => {
-    try {
-      const zip = new JSZip();
-      files.forEach((f) => {
-        if (!f.isFolder) {
-          const cleanPath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
-          zip.file(cleanPath, f.content || '');
-        }
-      });
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'theprog-workspace.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Erro ao gerar ZIP:', err);
     }
   };
 
@@ -451,7 +444,7 @@ export const Sidebar: React.FC = () => {
                 setDraggedFileId(null);
                 setDragOverFolderId(null);
               }}
-              onClick={() => openFile(item.id)}
+              onClick={() => handleOpenFile(item.id)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -514,53 +507,57 @@ export const Sidebar: React.FC = () => {
     );
   };
 
+  if (!isSidebarOpen) return null;
+
   return (
-    <aside
-      ref={sidebarRef}
-      style={{ width: `${sidebarWidth}px` }}
-      data-context-menu="sidebar"
-      onContextMenu={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
-        setContextMenu({ x: e.clientX, y: e.clientY, file: null });
-      }}
-      className="relative flex flex-col bg-[#f3f3f3] dark:bg-[#181818] border-r border-[#e5e5e5] dark:border-[#252526] select-none text-[#333333] dark:text-[#cccccc] text-xs h-full shrink-0 transition-[background-color,border-color] duration-150"
-    >
-      {/* Topo do Explorador com botões globais e de colapsar */}
-      <div className="h-9 px-3 flex items-center justify-between font-semibold tracking-wider text-[11px] text-[#616161] dark:text-[#888888] border-b border-[#e5e5e5] dark:border-[#202020]">
-        <span>EXPLORADOR</span>
-        <div className="flex items-center space-x-1">
-          <button
-            onClick={() => handleStartCreate(false, null)}
-            title="Novo Arquivo na raiz"
-            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
-          >
-            <FilePlus className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => handleStartCreate(true, null)}
-            title="Nova Pasta na raiz"
-            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
-          >
-            <FolderPlus className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={handleDownloadZip}
-            title="Baixar Workspace como ZIP (.zip)"
-            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
-          >
-            <FolderDown className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={toggleSidebar}
-            title="Esconder Barra Lateral"
-            className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer ml-1"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
+    <>
+      {/* Backdrop escuro para dispositivos móveis */}
+      {isMobile && (
+        <div
+          className="fixed inset-0 bg-black/50 z-30 md:hidden backdrop-blur-xs transition-opacity"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        ref={sidebarRef}
+        style={{ width: isMobile ? '280px' : `${sidebarWidth}px` }}
+        data-context-menu="sidebar"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
+          setContextMenu({ x: e.clientX, y: e.clientY, file: null });
+        }}
+        className="fixed inset-y-0 left-12 z-40 md:relative md:inset-auto md:z-auto flex flex-col bg-[#f3f3f3] dark:bg-[#181818] border-r border-[#e5e5e5] dark:border-[#252526] select-none text-[#333333] dark:text-[#cccccc] text-xs h-full shrink-0 shadow-2xl md:shadow-none transition-[background-color,border-color] duration-150 max-w-[calc(100vw-3rem)]"
+      >
+        {/* Topo do Explorador com botões globais e de colapsar */}
+        <div className="h-9 px-3 flex items-center justify-between font-semibold tracking-wider text-[11px] text-[#616161] dark:text-[#888888] border-b border-[#e5e5e5] dark:border-[#202020]">
+          <span>EXPLORADOR</span>
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={() => handleStartCreate(false, null)}
+              title="Novo Arquivo na raiz"
+              className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
+            >
+              <FilePlus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleStartCreate(true, null)}
+              title="Nova Pasta na raiz"
+              className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
+            >
+              <FolderPlus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={toggleSidebar}
+              title="Esconder Barra Lateral"
+              className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer ml-1"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
-      </div>
 
       {/* Seção Workspace Hierárquica */}
       <div
@@ -697,6 +694,7 @@ export const Sidebar: React.FC = () => {
         </div>
       )}
     </aside>
+    </>
   );
 };
 

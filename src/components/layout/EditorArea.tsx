@@ -209,7 +209,7 @@ export const EditorArea: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#1e1e1e] transition-colors relative">
       {/* Barra de Abas - SEMPRE VISÍVEL NO DOM */}
-      <div className="h-9 flex items-center bg-[#ececec] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#202020] overflow-x-auto select-none no-scrollbar">
+      <div className="h-9 flex items-center bg-[#ececec] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#202020] overflow-x-auto select-none no-scrollbar touch-pan-x">
         {tabs.map((tab, index) => {
           const isActive = tab.fileId === activeFileId;
           return (
@@ -356,7 +356,7 @@ export const EditorArea: React.FC = () => {
               tabSize: 4,
               insertSpaces: true,
               automaticLayout: true,
-              minimap: { enabled: true, side: 'right' },
+              minimap: { enabled: typeof window !== 'undefined' ? window.innerWidth >= 768 : true, side: 'right' },
               scrollBeyondLastLine: false,
               renderLineHighlight: 'all',
               cursorBlinking: 'smooth',
@@ -374,17 +374,10 @@ export const EditorArea: React.FC = () => {
           />
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-[#616161] dark:text-[#858585] select-none p-6 transition-colors">
+        <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-[#616161] dark:text-[#858585] select-none p-6 transition-colors text-center">
           <FileCode className="w-16 h-16 text-[#cccccc] dark:text-[#333333] mb-4 stroke-1" />
           <h2 className="text-base font-medium text-[#333333] dark:text-[#cccccc] mb-1">Nenhum arquivo aberto</h2>
-          <p className="text-xs text-[#777777] mb-4">Selecione um arquivo no explorador à esquerda ou crie um novo</p>
-          <button
-            onClick={handleCreateFilePrompt}
-            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#007acc] text-white text-xs hover:bg-[#0062a3] cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Criar Novo Arquivo</span>
-          </button>
+          <p className="text-xs text-[#777777] max-w-xs">Selecione um arquivo no explorador lateral para começar a programar</p>
         </div>
       )}
     </div>
