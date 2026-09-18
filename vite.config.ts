@@ -33,6 +33,7 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: [
         'favicon.svg',
+        'favicon.ico',
         'apple-touch-icon.png',
         'pwa-192x192.png',
         'pwa-512x512.png',
@@ -80,7 +81,7 @@ export default defineConfig({
       },
       injectManifest: {
         maximumFileSizeToCacheInBytes: 150 * 1024 * 1024,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,tar,bin}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,tar,bin,ttf,woff,woff2,webmanifest,json}'],
       },
     }),
   ],
