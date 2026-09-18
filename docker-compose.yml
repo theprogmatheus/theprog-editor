@@ -1,0 +1,9 @@
+version: '3.8'
+
+services:
+  theprog-editor:
+    build: .
+    container_name: theprog-editor
+    restart: always
+    ports:
+      - "8080:80"

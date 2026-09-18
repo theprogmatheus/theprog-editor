@@ -10,6 +10,8 @@ import {
   type CompilerProgress,
 } from '../services/cCompiler';
 
+export type SystemStatus = 'loading' | 'ready' | 'running' | 'error';
+
 interface EditorContextType {
   files: FileItem[];
   activeFileId: string | null;
@@ -19,6 +21,10 @@ interface EditorContextType {
   vmStatusMessage: string;
   compilerProgress: CompilerProgress;
   preloadCompiler: () => Promise<void>;
+  isSystemReady: boolean;
+  systemStatus: SystemStatus;
+  systemProgressPercent: number;
+  systemStatusMessage: string;
   isTerminalMinimized: boolean;
   setIsTerminalMinimized: (min: boolean) => void;
   isLinuxLoading: boolean;
@@ -369,10 +375,45 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     []
   );
 
+  const isSystemReady =
+    compilerProgress.status === 'ready' &&
+    vmStatus !== 'booting' &&
+    vmStatus !== 'downloading' &&
+    !isLinuxLoading;
+
+  const systemStatus: SystemStatus =
+    vmStatus === 'running'
+      ? 'running'
+      : compilerProgress.status === 'error' || vmStatus === 'error'
+      ? 'error'
+      : isSystemReady
+      ? 'ready'
+      : 'loading';
+
+  const systemProgressPercent = compilerProgress.status === 'ready' ? 100 : compilerProgress.percent;
+
+  const systemStatusMessage =
+    systemStatus === 'ready'
+      ? 'Sistema Pronto (Clang e Linux)'
+      : systemStatus === 'running'
+      ? 'Sistema Executando...'
+      : systemStatus === 'error'
+      ? compilerProgress.error || vmStatusMessage || 'Erro no Sistema'
+      : compilerProgress.status === 'preloading'
+      ? `Carregando Sistema (${compilerProgress.percent}%)...`
+      : 'Inicializando Sistema...';
+
   const runActiveFile = useCallback(
     (overrideContent?: string) => {
       // Garante que o terminal apareça se estiver minimizado
       setIsTerminalMinimized(false);
+
+      if (!isSystemReady) {
+        vmManager.emitOutput(
+          `\r\n\x1b[33m[TheProg] Aguarde: O Sistema ainda está carregando (${systemProgressPercent}%)...\x1b[0m\r\n`
+        );
+        return;
+      }
 
       if (!activeFile || activeFile.isFolder) {
         vmManager.emitOutput('\r\n\x1b[31mErro: Nenhum arquivo aberto para executar.\x1b[0m\r\n');
@@ -395,7 +436,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       vmManager.compileAndRun(activeFile.name, codeToRun);
     },
-    [activeFile]
+    [activeFile, isSystemReady, systemProgressPercent]
   );
 
   const formatActiveFile = useCallback(async () => {
@@ -500,6 +541,10 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         vmStatusMessage,
         compilerProgress,
         preloadCompiler,
+        isSystemReady,
+        systemStatus,
+        systemProgressPercent,
+        systemStatusMessage,
         isTerminalMinimized,
         setIsTerminalMinimized,
         isLinuxLoading,

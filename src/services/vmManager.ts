@@ -24,16 +24,8 @@ class VMManager {
   private stdinInputBuffer: string = '';
   private activeFiles: Map<string, string> = new Map();
   private compiledBinaries: Map<string, Uint8Array> = new Map();
-  private customStdin: string = '';
-  private stdinListeners: Set<OutputListener> = new Set();
-  private isAwaitingPreExecutionInput: boolean = false;
-  private preExecutionInputBuffer: string = '';
-  private pendingPreExecutionResolver: ((val: string) => void) | null = null;
 
   constructor() {
-    try {
-      this.customStdin = localStorage.getItem('theprog_custom_stdin') || '';
-    } catch {}
     this.setStatus('ready', 'Sistema pronto');
   }
 
@@ -63,51 +55,6 @@ class VMManager {
     return this.status;
   }
 
-  public subscribeStdin(listener: OutputListener): () => void {
-    this.stdinListeners.add(listener);
-    listener(this.customStdin);
-    return () => this.stdinListeners.delete(listener);
-  }
-
-  public setCustomStdin(val: string) {
-    this.customStdin = val;
-    try {
-      localStorage.setItem('theprog_custom_stdin', val);
-    } catch {}
-    this.stdinListeners.forEach((l) => l(val));
-  }
-
-  public getCustomStdin(): string {
-    return this.customStdin;
-  }
-
-  public async promptForStdinIfNeeded(code: string): Promise<string> {
-    // 1. Se o usuário já definiu uma entrada no painel de Entrada (stdin), usa ela diretamente:
-    if (this.customStdin.trim().length > 0) {
-      return this.customStdin;
-    }
-
-    // 2. Se há suporte a SharedArrayBuffer nativo, a entrada interativa ocorre em tempo real via terminal:
-    const hasSab = typeof SharedArrayBuffer !== 'undefined';
-    if (hasSab) {
-      return '';
-    }
-
-    // 3. Se NÃO há SharedArrayBuffer (ex: GitHub Pages), verifica se o código requer leitura de stdin:
-    const requiresStdin = /\b(scanf|cin\s*>>|getchar|fgets|gets|readline|read\s*\(\s*0\b|fscanf\s*\(\s*stdin)\b/.test(code);
-    if (!requiresStdin) {
-      return '';
-    }
-
-    // Solicita os dados de forma clara e amigável diretamente no terminal:
-    this.emitOutput('\x1b[36m[TheProg] Entrada (stdin): \x1b[0m');
-    this.isAwaitingPreExecutionInput = true;
-    this.preExecutionInputBuffer = '';
-
-    return new Promise<string>((resolve) => {
-      this.pendingPreExecutionResolver = resolve;
-    });
-  }
 
   public syncFile(filename: string, content: string) {
     this.activeFiles.set(filename, content);
@@ -131,15 +78,8 @@ class VMManager {
   }
 
   public stopExecution() {
-    if (!this.isExecuting && !this.isAwaitingProgramInput && !this.isAwaitingPreExecutionInput) return;
+    if (!this.isExecuting && !this.isAwaitingProgramInput) return;
     this.emitOutput(`^C\r\n${this.PROMPT}`);
-    if (this.pendingPreExecutionResolver) {
-      const resolve = this.pendingPreExecutionResolver;
-      this.pendingPreExecutionResolver = null;
-      resolve('');
-    }
-    this.isAwaitingPreExecutionInput = false;
-    this.preExecutionInputBuffer = '';
     if (this.currentWasmController) {
       try {
         this.currentWasmController.abort();
@@ -204,43 +144,6 @@ class VMManager {
   public sendInput(data: string) {
     if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
       this.v86Instance.serial0_send(data);
-      return;
-    }
-
-    // Se estiver aguardando entrada para stdin antes do início do binário (quando não há SAB)
-    if (this.isAwaitingPreExecutionInput) {
-      if (data === '\x03') { // Ctrl+C
-        this.stopExecution();
-        return;
-      }
-
-      if (data === '\r' || data === '\n') {
-        this.emitOutput('\r\n');
-        const input = this.preExecutionInputBuffer;
-        this.preExecutionInputBuffer = '';
-        this.isAwaitingPreExecutionInput = false;
-        if (this.pendingPreExecutionResolver) {
-          const resolve = this.pendingPreExecutionResolver;
-          this.pendingPreExecutionResolver = null;
-          resolve(input ? input + '\n' : '');
-        }
-        return;
-      }
-
-      if (data === '\x7f' || data === '\b') {
-        if (this.preExecutionInputBuffer.length > 0) {
-          this.preExecutionInputBuffer = this.preExecutionInputBuffer.slice(0, -1);
-          this.emitOutput('\b \b');
-        }
-        return;
-      }
-
-      if (data.length === 1 && data.charCodeAt(0) >= 32) {
-        this.preExecutionInputBuffer += data;
-        this.emitOutput(data);
-        return;
-      }
-
       return;
     }
 
@@ -636,13 +539,6 @@ class VMManager {
           if (wasmBinary) {
             this.isExecuting = true;
             this.setStatus('running', `Executando ${cmd}...`);
-
-            const sourceCode = this.activeFiles.get(`${binKey}.c`) || this.activeFiles.get(`${binKey}.cpp`) || '';
-            const initialStdin = await this.promptForStdinIfNeeded(sourceCode);
-            if (!this.isExecuting) {
-              return false;
-            }
-
             const exitCode = await executeWasmBinary(binKey, wasmBinary, {
               onOutput: (out) => this.emitOutput(out),
               onNeedStdin: () => {
@@ -653,7 +549,6 @@ class VMManager {
                 this.currentWasmController = ctrl;
                 this.currentAbortController = ctrl;
               },
-              initialStdin,
             });
             this.currentWasmController = null;
             this.currentAbortController = null;
@@ -748,11 +643,6 @@ class VMManager {
         this.compiledBinaries.set(binaryName, wasmBinary);
         this.compiledBinaries.set(`./${binaryName}`, wasmBinary);
 
-        const initialStdin = await this.promptForStdinIfNeeded(code);
-        if (!this.isExecuting) {
-          return;
-        }
-
         const exitCode = await executeWasmBinary(binaryName, wasmBinary, {
           onOutput: (out) => this.emitOutput(out),
           onNeedStdin: () => {
@@ -763,7 +653,6 @@ class VMManager {
             this.currentWasmController = ctrl;
             this.currentAbortController = ctrl;
           },
-          initialStdin,
         });
         this.currentWasmController = null;
         this.currentAbortController = null;

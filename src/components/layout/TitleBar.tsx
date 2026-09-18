@@ -16,13 +16,14 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
     stopExecution,
     formatActiveFile,
     vmStatus,
-    vmStatusMessage,
+    isSystemReady,
+    systemStatus,
+    systemProgressPercent,
+    systemStatusMessage,
     fontSize,
     increaseFontSize,
     decreaseFontSize,
     resetFontSize,
-    compilerProgress,
-    preloadCompiler,
   } = useEditor();
   const { theme, toggleTheme } = useTheme();
   const isOnline = useNetworkStatus();
@@ -54,12 +55,17 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
         ) : (
           <button
             onClick={() => runActiveFile()}
+            disabled={!isSystemReady}
             title={
-              compilerProgress.status === 'preloading'
-                ? `Pré-carregando Clang (${compilerProgress.percent}%)... Clique para executar assim que pronto (F5)`
+              !isSystemReady
+                ? `Aguarde o carregamento do Sistema (${systemProgressPercent}%)... O botão será ativado assim que 100% pronto.`
                 : 'Salvar e Executar Código (F5)'
             }
-            className="flex items-center justify-center w-7 h-7 rounded font-medium text-white shadow-xs transition-all bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer"
+            className={`flex items-center justify-center w-7 h-7 rounded font-medium text-white shadow-xs transition-all ${
+              !isSystemReady
+                ? 'bg-neutral-400 dark:bg-neutral-600 opacity-50 cursor-not-allowed'
+                : 'bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer'
+            }`}
           >
             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
           </button>
@@ -103,57 +109,50 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
           </button>
         </div>
 
-        {/* Badge do Compilador Clang WebAssembly (C/C++) */}
-        {compilerProgress.status === 'preloading' && (
-          <div
-            title={`Pré-carregando módulos do compilador Clang WebAssembly (${compilerProgress.percent}% concluído)...`}
-            className="hidden sm:flex items-center space-x-1.5 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800/60 text-[11px] text-blue-700 dark:text-blue-300 select-none animate-pulse"
+        {/* Badge Unificado do Sistema (Compilador Clang WebAssembly + Linux v86) */}
+        {systemStatus === 'loading' && (
+          <button
+            onClick={onOpenVMModal}
+            title={`Sistema carregando (${systemProgressPercent}%). Compilador Clang e Linux em inicialização. Clique para detalhes.`}
+            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800/60 text-[11px] text-blue-700 dark:text-blue-300 select-none animate-pulse cursor-pointer"
           >
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-            <span className="font-mono font-medium">Clang {compilerProgress.percent}%</span>
-          </div>
-        )}
-
-        {compilerProgress.status === 'ready' && (
-          <div
-            title="Compilador Clang C/C++ (WebAssembly + WASI) pré-carregado e pronto para execução instantânea."
-            className="hidden lg:flex items-center space-x-1.5 px-2 py-0.5 rounded bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800/40 text-[11px] text-emerald-700 dark:text-emerald-400 select-none"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Clang Pronto</span>
-          </div>
-        )}
-
-        {compilerProgress.status === 'error' && (
-          <button
-            onClick={() => preloadCompiler()}
-            title={`Erro ao pré-carregar Clang: ${compilerProgress.error || 'Falha de rede'}. Clique para tentar novamente.`}
-            className="hidden sm:flex items-center space-x-1.5 px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-[11px] text-rose-700 dark:text-rose-300 cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
-            <span>Reconectar Clang</span>
+            <span className="font-medium">Sistema {systemProgressPercent}%</span>
           </button>
         )}
 
-        {/* Badge da Máquina Virtual */}
-        <button
-          onClick={onOpenVMModal}
-          title={`Status da VM: ${vmStatusMessage}. Clique para configurar.`}
-          className="hidden sm:flex items-center space-x-1.5 px-2 py-0.5 rounded bg-[#dedede] hover:bg-[#d5d5d5] dark:bg-[#252526] dark:hover:bg-[#333333] border border-[#cccccc] dark:border-[#3e3e42] cursor-pointer text-[11px] text-[#333333] dark:text-[#cccccc]"
-        >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              vmStatus === 'ready'
-                ? 'bg-emerald-500'
-                : vmStatus === 'running'
-                ? 'bg-amber-500 animate-pulse'
-                : vmStatus === 'error'
-                ? 'bg-rose-500'
-                : 'bg-blue-500 animate-pulse'
-            }`}
-          />
-          <span>Linux</span>
-        </button>
+        {systemStatus === 'ready' && (
+          <button
+            onClick={onOpenVMModal}
+            title="Sistema 100% pronto (Clang C/C++ WebAssembly e Linux integrados). Clique para ver detalhes."
+            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/50 text-[11px] text-emerald-700 dark:text-emerald-300 select-none cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="font-medium">Sistema</span>
+          </button>
+        )}
+
+        {systemStatus === 'running' && (
+          <button
+            onClick={onOpenVMModal}
+            title="Sistema executando código... Clique para ver detalhes."
+            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300 select-none animate-pulse cursor-pointer"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-500" />
+            <span className="font-medium">Sistema</span>
+          </button>
+        )}
+
+        {systemStatus === 'error' && (
+          <button
+            onClick={onOpenVMModal}
+            title={`Erro no Sistema: ${systemStatusMessage}. Clique para ver detalhes e reconectar.`}
+            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-[11px] text-rose-700 dark:text-rose-300 cursor-pointer"
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span className="font-medium">Sistema: Erro</span>
+          </button>
+        )}
 
         {/* Badge Online / Offline em tempo real (Apenas Ícone) */}
         <div

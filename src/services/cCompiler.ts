@@ -210,22 +210,16 @@ export interface ExecutionCallbacks {
   onOutput: (text: string) => void;
   onNeedStdin?: () => void;
   onControllerReady?: (controller: { sendStdin: (line: string) => void; abort: () => void }) => void;
-  initialStdin?: string;
 }
 
 export async function executeWasmBinary(
   binaryName: string,
   wasmBinary: Uint8Array,
-  callbacks: ((text: string) => void) | ExecutionCallbacks,
-  initialStdin?: string
+  callbacks: ((text: string) => void) | ExecutionCallbacks
 ): Promise<number> {
   const onOutput = typeof callbacks === 'function' ? callbacks : callbacks.onOutput;
   const onNeedStdin = typeof callbacks === 'function' ? undefined : callbacks.onNeedStdin;
   const onControllerReady = typeof callbacks === 'function' ? undefined : callbacks.onControllerReady;
-  const stdinToPass =
-    typeof callbacks === 'object' && callbacks.initialStdin !== undefined
-      ? callbacks.initialStdin
-      : initialStdin;
 
   return new Promise((resolve) => {
     let isFinished = false;
@@ -306,7 +300,7 @@ export async function executeWasmBinary(
       resolve(1);
     };
 
-    worker.postMessage({ wasmBinary, sab, binaryName, initialStdin: stdinToPass });
+    worker.postMessage({ wasmBinary, sab, binaryName });
   });
 }
 
