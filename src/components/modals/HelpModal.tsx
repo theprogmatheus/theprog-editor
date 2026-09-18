@@ -74,16 +74,16 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </p>
           </div>
 
-          {/* 3. Terminal Integrado */}
+          {/* 3. Console de Execução Autêntico */}
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] rounded border border-[#e5e5e5] dark:border-[#333333] space-y-1.5">
             <div className="flex items-center space-x-1.5 font-semibold text-amber-600 dark:text-amber-400">
               <Terminal className="w-4 h-4" />
-              <span>3. Terminal Integrado Linux</span>
+              <span>3. Console de Execução Autêntico</span>
             </div>
             <p className="text-[#666666] dark:text-[#aaaaaa] leading-relaxed">
-              O painel inferior conta com um terminal padrão Linux (prompt <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">~$</code>).
-              Suporta navegação no <strong>histórico de comandos</strong> (setas Cima / Baixo), <strong>autocompletion inteligente</strong> de comandos e arquivos (tecla Tab), edição com setas Esquerda/Direita e blindagem de output.
-              Ao pressionar <strong>Executar (F5)</strong>, o terminal é exibido automaticamente com a execução limpa do seu código.
+              O painel inferior conta com um Console de Execução nativo baseado em <strong>Clang WebAssembly + WASI</strong>.
+              Cada pasta no explorador funciona como um escopo isolado de projeto.
+              Ao clicar em <strong>Executar (F5)</strong>, o foco do teclado vai direto para o console, permitindo digitar entradas de <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">scanf()</code> e <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">cin</code> instantaneamente com saída e diagnósticos fiéis.
             </p>
           </div>
 

@@ -120,7 +120,8 @@ export async function compileC(
   sources: string[],
   allFiles: Map<string, string>,
   outputBinaryName: string = 'main',
-  onOutput: (text: string) => void
+  onOutput: (text: string) => void,
+  extraArgs: string[] = []
 ): Promise<Uint8Array | null> {
   // Se ainda estiver pré-carregando quando o usuário clicou em Executar, exibe feedback visual amigável
   if (currentProgress.status !== 'ready') {
@@ -177,7 +178,8 @@ export async function compileC(
 
   try {
     const wasmOutName = outputBinaryName.endsWith('.wasm') ? outputBinaryName : `${outputBinaryName}.wasm`;
-    const args = ['-include', '__theprog_runtime.h', ...sources, '-o', wasmOutName];
+    const cleanExtraArgs = extraArgs.map((a) => a.trim()).filter(Boolean);
+    const args = ['-include', '__theprog_runtime.h', ...cleanExtraArgs, ...sources, '-o', wasmOutName];
 
     // Detecta se algum dos arquivos de entrada é C++ para vincular a libstdc++ corretamente
     const isCpp = sources.some((s) => {

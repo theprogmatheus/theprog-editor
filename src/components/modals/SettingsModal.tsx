@@ -1,6 +1,8 @@
-import { X, Moon, Sun, RotateCcw, Monitor, Download, CheckCircle2, Laptop } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Moon, Sun, RotateCcw, Monitor, Download, CheckCircle2, Laptop, Sliders } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
+import { useEditor } from '../../context/EditorContext';
 import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { defaultFiles, saveFileToStorage } from '../../services/storage';
 import { APP_VERSION } from '../../config/version';
@@ -14,8 +16,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const { theme, setTheme } = useTheme();
   const { showConfirm } = useDialog();
   const { isInstallable, isInstalled, installApp } = usePwaInstall();
+  const { compilerFlags, setCompilerFlags } = useEditor();
+  const [flagsInput, setFlagsInput] = useState(compilerFlags.join(' '));
 
   if (!isOpen) return null;
+
+  const handleFlagsBlur = () => {
+    const tokens = flagsInput.trim().split(/\s+/).filter(Boolean);
+    setCompilerFlags(tokens);
+  };
 
   const handleResetWorkspace = async () => {
     const confirmed = await showConfirm({
@@ -81,6 +90,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 <Sun className="w-4 h-4 text-amber-500" />
                 <span>VS Code Claro</span>
               </button>
+            </div>
+          </div>
+
+          {/* Parâmetros de Compilação (Clang) */}
+          <div className="p-3 rounded bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] space-y-2">
+            <div className="flex items-center space-x-2 font-medium text-black dark:text-white">
+              <Sliders className="w-4 h-4 text-[#007acc] dark:text-[#3794ff]" />
+              <span>Parâmetros de Compilação (Clang)</span>
+            </div>
+            <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+              Flags repassadas diretamente ao compilador Clang Wasm durante a execução do código:
+            </p>
+            <input
+              type="text"
+              value={flagsInput}
+              onChange={(e) => setFlagsInput(e.target.value)}
+              onBlur={handleFlagsBlur}
+              placeholder="-O2 -Wall"
+              className="w-full px-2.5 py-1.5 font-mono text-xs rounded bg-white dark:bg-[#252526] border border-[#cccccc] dark:border-[#3e3e42] text-black dark:text-white focus:outline-none focus:border-[#007acc]"
+            />
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {[
+                ['-O2', '-Wall'],
+                ['-O0', '-Wall', '-g'],
+                ['-O3', '-Wall'],
+                ['-std=c17', '-O2', '-Wall'],
+              ].map((preset) => {
+                const str = preset.join(' ');
+                return (
+                  <button
+                    key={str}
+                    type="button"
+                    onClick={() => {
+                      setFlagsInput(str);
+                      setCompilerFlags(preset);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[11px] font-mono border cursor-pointer transition-colors ${
+                      flagsInput.trim() === str
+                        ? 'bg-[#007acc]/15 border-[#007acc] text-[#007acc] dark:text-[#3794ff]'
+                        : 'border-[#dddddd] dark:border-[#444444] hover:bg-[#eaeaea] dark:hover:bg-[#333333]'
+                    }`}
+                  >
+                    {str}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

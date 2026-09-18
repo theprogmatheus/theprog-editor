@@ -12,7 +12,6 @@ import {
   Copy,
   ClipboardPaste,
   CheckSquare,
-  Square,
 } from 'lucide-react';
 import { vmManager } from '../../services/vmManager';
 import { useTheme } from '../../context/ThemeContext';
@@ -30,7 +29,6 @@ export const TerminalPanel: React.FC = () => {
     increaseTerminalFontSize,
     decreaseTerminalFontSize,
     resetTerminalFontSize,
-    stopExecution,
   } = useEditor();
   const [isMaximized, setIsMaximized] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -96,9 +94,6 @@ export const TerminalPanel: React.FC = () => {
     const unsubscribe = vmManager.subscribeOutput((data) => {
       term.write(data);
     });
-
-    // Padrão Linux clean
-    term.write(vmManager.PROMPT);
 
     // ResizeObserver resiliente para nunca encolher ou corromper o canvas
     const safeFit = () => {
@@ -185,6 +180,21 @@ export const TerminalPanel: React.FC = () => {
     };
   }, []);
 
+  // Foco automático imediato no console ao clicar em Executar ou apertar F5
+  useEffect(() => {
+    const handleFocus = () => {
+      setIsTerminalMinimized(false);
+      setTimeout(() => {
+        xtermInstance.current?.focus();
+      }, 50);
+    };
+
+    window.addEventListener('theprog-focus-console', handleFocus);
+    return () => {
+      window.removeEventListener('theprog-focus-console', handleFocus);
+    };
+  }, [setIsTerminalMinimized]);
+
   const handleClear = () => {
     if (xtermInstance.current) {
       xtermInstance.current.reset();
@@ -221,36 +231,31 @@ export const TerminalPanel: React.FC = () => {
     xtermInstance.current?.selectAll();
   }, []);
 
-  const handleStop = useCallback(() => {
-    setContextMenu(null);
-    stopExecution();
-  }, [stopExecution]);
-
   return (
     <div
       className={`flex flex-col border-t border-[#e5e5e5] dark:border-[#252526] bg-white dark:bg-[#1e1e1e] transition-all duration-150 relative ${
         isTerminalMinimized ? 'h-8' : isMaximized ? 'h-[75vh]' : 'h-64'
       }`}
     >
-      {/* Topo do painel de Terminal */}
+      {/* Topo do painel de Console */}
       <div className="h-8 px-3 flex items-center justify-between bg-[#ececec] dark:bg-[#252526] select-none text-xs border-b border-[#e5e5e5] dark:border-[#202020] text-[#333333] dark:text-[#cccccc] shrink-0">
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-1.5 font-semibold text-black dark:text-white">
             <TerminalIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="tracking-wide text-[11px]">TERMINAL</span>
+            <span className="tracking-wide text-[11px]">CONSOLE DE EXECUÇÃO</span>
           </div>
         </div>
 
-        {/* Controles do terminal */}
+        {/* Controles do console */}
         <div className="flex items-center space-x-2 text-[#666666] dark:text-[#aaaaaa]">
-          {/* Ajuste de Tamanho da Fonte do Terminal (A- / A+) */}
+          {/* Ajuste de Tamanho da Fonte do Console (A- / A+) */}
           <div
             className="flex items-center bg-[#dedede] dark:bg-[#1e1e1e] border border-[#cccccc] dark:border-[#3e3e42] rounded px-1 py-0.5 space-x-1"
-            title="Tamanho da fonte do terminal"
+            title="Tamanho da fonte do console"
           >
             <button
               onClick={decreaseTerminalFontSize}
-              title="Diminuir fonte do terminal"
+              title="Diminuir fonte do console"
               className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#cccccc] dark:hover:bg-[#383838] font-semibold text-[10px] text-[#444444] dark:text-[#cccccc] cursor-pointer transition-colors"
             >
               A-
@@ -264,7 +269,7 @@ export const TerminalPanel: React.FC = () => {
             </button>
             <button
               onClick={increaseTerminalFontSize}
-              title="Aumentar fonte do terminal"
+              title="Aumentar fonte do console"
               className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#cccccc] dark:hover:bg-[#383838] font-semibold text-[10px] text-[#444444] dark:text-[#cccccc] cursor-pointer transition-colors"
             >
               A+
@@ -275,7 +280,7 @@ export const TerminalPanel: React.FC = () => {
 
           <button
             onClick={handleClear}
-            title="Limpar Terminal"
+            title="Limpar Console"
             className="p-1 rounded hover:bg-[#dedede] dark:hover:bg-[#333333] hover:text-black dark:hover:text-white cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -363,18 +368,7 @@ export const TerminalPanel: React.FC = () => {
               className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Limpar Terminal</span>
-            </button>
-
-            <button
-              onClick={handleStop}
-              className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-[#e51400] hover:text-white cursor-pointer transition-colors text-left text-rose-600 dark:text-rose-400"
-            >
-              <div className="flex items-center space-x-2.5">
-                <Square className="w-3.5 h-3.5 fill-current" />
-                <span>Interromper</span>
-              </div>
-              <span className="text-[10px] opacity-75">Ctrl+C</span>
+              <span>Limpar Console</span>
             </button>
           </div>
         )}

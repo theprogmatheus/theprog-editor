@@ -55,6 +55,8 @@ interface EditorContextType {
   increaseTerminalFontSize: () => void;
   decreaseTerminalFontSize: () => void;
   resetTerminalFontSize: () => void;
+  compilerFlags: string[];
+  setCompilerFlags: (flags: string[]) => void;
 }
 
 const EditorContext = createContext<EditorContextType | undefined>(undefined);
@@ -66,7 +68,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [vmStatus, setVmStatus] = useState<VMStatus>('idle');
   const [vmStatusMessage, setVmStatusMessage] = useState<string>('Inicializando Linux...');
   const [compilerProgress, setCompilerProgress] = useState<CompilerProgress>(getCompilerProgress());
-  const [isTerminalMinimized, setIsTerminalMinimized] = useState<boolean>(false);
+  const [isTerminalMinimized, setIsTerminalMinimized] = useState<boolean>(true);
   const [isLinuxLoading, setIsLinuxLoading] = useState<boolean>(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
@@ -138,6 +140,23 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const resetTerminalFontSize = useCallback(() => {
     setTerminalFontSize(14);
     localStorage.setItem('theprog_terminal_font_size', '14');
+  }, []);
+
+  // Flags customizadas do compilador Clang
+  const [compilerFlags, setCompilerFlagsState] = useState<string[]>(() => {
+    const saved = localStorage.getItem('theprog_compiler_flags');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch {}
+    }
+    return ['-O2', '-Wall'];
+  });
+
+  const setCompilerFlags = useCallback((flags: string[]) => {
+    setCompilerFlagsState(flags);
+    localStorage.setItem('theprog_compiler_flags', JSON.stringify(flags));
   }, []);
 
   const saveTimeouts = useRef<Map<string, any>>(new Map());
@@ -441,10 +460,31 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ? `Carregando Sistema (${compilerProgress.percent}%)...`
       : 'Inicializando Sistema...';
 
+function getFilesInProjectScope(files: FileItem[], activeFile: FileItem): FileItem[] {
+  if (!activeFile.parentId) {
+    return files.filter((f) => !f.isFolder && f.parentId === null);
+  }
+
+  const folderIds = new Set<string>([activeFile.parentId]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const f of files) {
+      if (f.isFolder && f.parentId && folderIds.has(f.parentId) && !folderIds.has(f.id)) {
+        folderIds.add(f.id);
+        added = true;
+      }
+    }
+  }
+
+  return files.filter((f) => !f.isFolder && f.parentId !== null && folderIds.has(f.parentId));
+}
+
   const runActiveFile = useCallback(
     (overrideContent?: string) => {
-      // Garante que o terminal apareça se estiver minimizado
+      // Garante que o console de execução apareça e receba foco imediato
       setIsTerminalMinimized(false);
+      window.dispatchEvent(new CustomEvent('theprog-focus-console'));
 
       if (!isSystemReady) {
         vmManager.emitOutput(
@@ -472,9 +512,20 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTabs((prev) => prev.map((t) => (t.fileId === activeFile.id ? { ...t, isDirty: false } : t)));
       }
 
-      vmManager.compileAndRun(activeFile.name, codeToRun);
+      // Escopo isolado de diretório: compila apenas arquivos da pasta do arquivo ativo
+      const folderFiles = new Map<string, string>();
+      const scopedFiles = getFilesInProjectScope(files, activeFile);
+      for (const f of scopedFiles) {
+        if (f.id === activeFile.id) {
+          folderFiles.set(f.name, codeToRun);
+        } else {
+          folderFiles.set(f.name, f.content || '');
+        }
+      }
+
+      vmManager.runCode(activeFile.name, folderFiles, compilerFlags);
     },
-    [activeFile, isSystemReady, systemProgressPercent]
+    [activeFile, files, isSystemReady, systemProgressPercent, compilerFlags]
   );
 
   const formatActiveFile = useCallback(async () => {
@@ -613,6 +664,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         increaseTerminalFontSize,
         decreaseTerminalFontSize,
         resetTerminalFontSize,
+        compilerFlags,
+        setCompilerFlags,
       }}
     >
       {children}
