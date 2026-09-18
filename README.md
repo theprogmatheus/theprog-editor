@@ -21,7 +21,7 @@ O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda 
 - **Início Minimizado & Foco Automático (F5):** O console e a barra de arquivos iniciam recolhidos para maximizar a área de trabalho. Ao executar (`F5` ou botão Executar), o console se expande e o foco do teclado vai imediatamente para a digitação (`scanf()` / `cin`).
 - **Design 100% Responsivo e Suporte Mobile:** Interface moderna adaptada para celulares e tablets, com barra lateral gaveta (drawer overlay com backdrop), minimap responsivo no Monaco e barra de abas com scroll touch.
 - **Isolamento de Escopo por Diretório:** Cada pasta no gerenciador de arquivos atua como um escopo autônomo de projeto. Arquivos de exercícios ou pastas diferentes jamais interferem na compilação uns dos outros.
-- **Parâmetros de Compilação Customizáveis (Clang Flags):** Configuração direta de flags (`-O2`, `-Wall`, `-std=c17`, `-g`) pelo modal de configurações, com presets rápidos em um clique.
+- **Parâmetros de Compilação Customizáveis (Clang Flags):** Configuração direta de flags pelo modal de configurações com presets rápidos, padronizado por padrão com `-std=c17 -O0 -Wall -Wextra` para atender com rigor acadêmico e didático as disciplinas de Algoritmos e Programação (AP1/AP2) e Estruturas de Dados (ED1/ED2).
 - **Entrada Interativa com `stdin` em Tempo Real:** Suporte completo a chamadas bloqueantes como `scanf()`, `getchar()`, `cin` e `fgets()` executadas em Web Worker com sincronização por `SharedArrayBuffer` e `Atomics`.
 - **Editor Baseado no Monaco (VS Code):** Destaque de sintaxe, indentação automática, bracket matching, controle dinâmico do tamanho da fonte e atalhos de teclado (`F5`, `Ctrl+S`, `Ctrl+F`).
 - **Formatação de Código Industrial:** Integração nativa com **Clang-Format** em WebAssembly (`@wasm-fmt/clang-format`), permitindo formatar o código com `Shift + Alt + F`.
@@ -60,7 +60,7 @@ theprog-editor/
 │   │   ├── layout/          # TitleBar, Sidebar, EditorArea, TerminalPanel
 │   │   └── modals/          # Ajuda, Configurações e Informações do Sistema
 │   ├── config/
-│   │   └── version.ts       # Constante de versão da aplicação (v0.2.0)
+│   │   └── version.ts       # Constante de versão da aplicação (v0.3.0)
 │   ├── context/             # Estados globais (EditorContext, ThemeContext, DialogContext)
 │   ├── hooks/               # Hooks customizados (usePwaInstall, useNetworkStatus)
 │   ├── services/
@@ -71,7 +71,7 @@ theprog-editor/
 │   ├── utils/               # Utilitários (formatCode via clang-format)
 │   └── workers/             # Web Worker isolado (wasmWorker para execução C/WASI)
 ├── index.html               # Entry point com script de redirecionamento canônico
-├── package.json             # Dependências e scripts de build (v0.2.0)
+├── package.json             # Dependências e scripts de build (v0.3.0)
 └── vite.config.ts           # Configurações de PWA, headers COOP/COEP e build
 ```
 

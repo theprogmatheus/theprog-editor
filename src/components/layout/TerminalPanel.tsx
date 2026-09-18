@@ -180,7 +180,7 @@ export const TerminalPanel: React.FC = () => {
     };
   }, []);
 
-  // Foco automático imediato no console ao clicar em Executar ou apertar F5
+  // Foco automático imediato e limpeza do console ao clicar em Executar ou apertar F5
   useEffect(() => {
     const handleFocus = () => {
       setIsTerminalMinimized(false);
@@ -189,9 +189,17 @@ export const TerminalPanel: React.FC = () => {
       }, 50);
     };
 
+    const handleClearEvent = () => {
+      if (xtermInstance.current) {
+        xtermInstance.current.reset();
+      }
+    };
+
     window.addEventListener('theprog-focus-console', handleFocus);
+    window.addEventListener('theprog-clear-console', handleClearEvent);
     return () => {
       window.removeEventListener('theprog-focus-console', handleFocus);
+      window.removeEventListener('theprog-clear-console', handleClearEvent);
     };
   }, [setIsTerminalMinimized]);
 

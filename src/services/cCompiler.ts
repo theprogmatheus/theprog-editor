@@ -157,19 +157,26 @@ export async function compileC(
   let compilerStderr = '';
   let compilerStdout = '';
 
+  const stdoutDecoder = new TextDecoder('utf-8');
+  const stderrDecoder = new TextDecoder('utf-8');
+
   const options = {
     stdout: (bytes: Uint8Array | null) => {
       if (bytes) {
-        const text = new TextDecoder().decode(bytes);
-        compilerStdout += text;
-        onOutput(text.replace(/\r?\n/g, '\r\n'));
+        const text = stdoutDecoder.decode(bytes, { stream: true });
+        if (text) {
+          compilerStdout += text;
+          onOutput(text.replace(/\r?\n/g, '\r\n'));
+        }
       }
     },
     stderr: (bytes: Uint8Array | null) => {
       if (bytes) {
-        const text = new TextDecoder().decode(bytes);
-        compilerStderr += text;
-        onOutput(text.replace(/\r?\n/g, '\r\n'));
+        const text = stderrDecoder.decode(bytes, { stream: true });
+        if (text) {
+          compilerStderr += text;
+          onOutput(text.replace(/\r?\n/g, '\r\n'));
+        }
       }
     },
     // Suprime o console.log bruto do YoWASP no console

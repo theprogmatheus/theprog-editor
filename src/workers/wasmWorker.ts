@@ -150,6 +150,8 @@ self.onmessage = async (event: MessageEvent) => {
   }
 
   class WorkerStdout extends OpenFile {
+    private decoder = new TextDecoder('utf-8');
+
     constructor() {
       super(new File([]));
     }
@@ -159,9 +161,18 @@ self.onmessage = async (event: MessageEvent) => {
     }
 
     override fd_write(bytes: Uint8Array) {
-      const text = new TextDecoder().decode(bytes);
-      self.postMessage({ type: 'stdout', text });
+      const text = this.decoder.decode(bytes, { stream: true });
+      if (text.length > 0) {
+        self.postMessage({ type: 'stdout', text });
+      }
       return { ret: 0, nwritten: bytes.byteLength };
+    }
+
+    public flush() {
+      const text = this.decoder.decode();
+      if (text.length > 0) {
+        self.postMessage({ type: 'stdout', text });
+      }
     }
   }
 
@@ -176,11 +187,13 @@ self.onmessage = async (event: MessageEvent) => {
     }
 
     const rootContents = buildVfs(rawFiles);
+    const stdout = new WorkerStdout();
+    const stderr = new WorkerStdout();
 
     const fds = [
       new WorkerStdin(),
-      new WorkerStdout(),
-      new WorkerStdout(),
+      stdout,
+      stderr,
       new PreopenDirectory('.', rootContents),
     ];
 
@@ -191,6 +204,8 @@ self.onmessage = async (event: MessageEvent) => {
     });
 
     const exitCode = wasi.start(instance as any);
+    stdout.flush();
+    stderr.flush();
 
     // Extrai arquivos criados ou modificados durante a execução do programa
     const modifiedFiles = extractModifiedOrNewFiles(rootContents, originalFilesMap);

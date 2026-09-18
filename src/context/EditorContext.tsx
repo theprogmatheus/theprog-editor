@@ -144,16 +144,24 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('theprog_terminal_font_size', '14');
   }, []);
 
-  // Flags customizadas do compilador Clang
+  // Flags customizadas do compilador Clang (Padrão para AP2: -std=c17 -O0 -Wall -Wextra)
   const [compilerFlags, setCompilerFlagsState] = useState<string[]>(() => {
+    const defaultFlags = ['-std=c17', '-O0', '-Wall', '-Wextra'];
     const saved = localStorage.getItem('theprog_compiler_flags');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Migra automaticamente usuários que estavam com o antigo padrão [-O2, -Wall]
+          if (parsed.length === 2 && parsed[0] === '-O2' && parsed[1] === '-Wall') {
+            localStorage.setItem('theprog_compiler_flags', JSON.stringify(defaultFlags));
+            return defaultFlags;
+          }
+          return parsed;
+        }
       } catch {}
     }
-    return ['-O2', '-Wall'];
+    return defaultFlags;
   });
 
   const setCompilerFlags = useCallback((flags: string[]) => {
@@ -495,8 +503,10 @@ function getFilesInProjectScope(files: FileItem[], activeFile: FileItem): FileIt
 
   const runActiveFile = useCallback(
     (overrideContent?: string) => {
-      // Garante que o console de execução apareça e receba foco imediato
+      // Garante que o console de execução apareça, limpe o histórico anterior e receba foco imediato
       setIsTerminalMinimized(false);
+      window.dispatchEvent(new CustomEvent('theprog-clear-console'));
+      vmManager.clearTerminal();
       window.dispatchEvent(new CustomEvent('theprog-focus-console'));
 
       if (!isSystemReady) {

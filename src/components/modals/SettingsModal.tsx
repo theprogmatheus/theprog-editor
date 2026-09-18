@@ -107,32 +107,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               value={flagsInput}
               onChange={(e) => setFlagsInput(e.target.value)}
               onBlur={handleFlagsBlur}
-              placeholder="-O2 -Wall"
+              placeholder="-std=c17 -O0 -Wall -Wextra"
               className="w-full px-2.5 py-1.5 font-mono text-xs rounded bg-white dark:bg-[#252526] border border-[#cccccc] dark:border-[#3e3e42] text-black dark:text-white focus:outline-none focus:border-[#007acc]"
             />
             <div className="flex flex-wrap gap-1.5 pt-1">
               {[
-                ['-O2', '-Wall'],
-                ['-O0', '-Wall', '-g'],
-                ['-O3', '-Wall'],
-                ['-std=c17', '-O2', '-Wall'],
+                { flags: ['-std=c17', '-O0', '-Wall', '-Wextra'], label: '-std=c17 -O0 -Wall -Wextra (Estudante)' },
+                { flags: ['-std=c17', '-O2', '-Wall', '-Wextra'], label: '-std=c17 -O2 -Wall -Wextra (Performance)' },
+                { flags: ['-std=c17', '-O0', '-Wall', '-Wextra', '-Wpedantic'], label: '-std=c17 -O0 -Wall -Wextra -Wpedantic (C estrito)' },
               ].map((preset) => {
-                const str = preset.join(' ');
+                const str = preset.flags.join(' ');
+                const isSelected = flagsInput.trim() === str;
                 return (
                   <button
                     key={str}
                     type="button"
                     onClick={() => {
                       setFlagsInput(str);
-                      setCompilerFlags(preset);
+                      setCompilerFlags(preset.flags);
                     }}
                     className={`px-2 py-0.5 rounded text-[11px] font-mono border cursor-pointer transition-colors ${
-                      flagsInput.trim() === str
-                        ? 'bg-[#007acc]/15 border-[#007acc] text-[#007acc] dark:text-[#3794ff]'
+                      isSelected
+                        ? 'bg-[#007acc]/15 border-[#007acc] text-[#007acc] dark:text-[#3794ff] font-semibold'
                         : 'border-[#dddddd] dark:border-[#444444] hover:bg-[#eaeaea] dark:hover:bg-[#333333]'
                     }`}
                   >
-                    {str}
+                    {preset.label}
                   </button>
                 );
               })}

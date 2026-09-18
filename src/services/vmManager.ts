@@ -170,6 +170,8 @@ class VMManager {
       this.stopExecution();
     }
 
+    this.clearTerminal();
+
     this.isExecuting = true;
     this.setStatus('running', `Compilando ${mainFilename}...`);
 
