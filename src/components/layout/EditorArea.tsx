@@ -141,14 +141,21 @@ export const EditorArea: React.FC = () => {
     editorRef.current = editor;
     editor.focus();
 
+    // Ação de formatação integrada ao menu de contexto do editor (com atalho Shift+Alt+F)
+    editor.addAction({
+      id: 'format-document-action',
+      label: 'Formatar Documento',
+      keybindings: [monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF],
+      contextMenuGroupId: '1_modification',
+      contextMenuOrder: 1.5,
+      run: () => {
+        handleFormat();
+      },
+    });
+
     // Atalho F5 para rodar
     editor.addCommand(monaco.KeyCode.F5, () => {
       handleRun();
-    });
-
-    // Atalho Shift+Alt+F para formatar código
-    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyMod.Alt | monaco.KeyCode.KeyF, () => {
-      handleFormat();
     });
 
     // Atalho Ctrl+S para salvar
@@ -356,7 +363,7 @@ export const EditorArea: React.FC = () => {
               tabSize: 4,
               insertSpaces: true,
               automaticLayout: true,
-              minimap: { enabled: typeof window !== 'undefined' ? window.innerWidth >= 768 : true, side: 'right' },
+              minimap: { enabled: false },
               scrollBeyondLastLine: false,
               renderLineHighlight: 'all',
               cursorBlinking: 'smooth',

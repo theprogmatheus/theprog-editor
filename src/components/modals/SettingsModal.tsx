@@ -114,7 +114,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               {[
                 { flags: ['-std=c17', '-O0', '-Wall', '-Wextra'], label: '-std=c17 -O0 -Wall -Wextra (Estudante)' },
                 { flags: ['-std=c17', '-O2', '-Wall', '-Wextra'], label: '-std=c17 -O2 -Wall -Wextra (Performance)' },
-                { flags: ['-std=c17', '-O0', '-Wall', '-Wextra', '-Wpedantic'], label: '-std=c17 -O0 -Wall -Wextra -Wpedantic (C estrito)' },
+                { flags: ['-std=c17', '-O0', '-Wall', '-Wextra', '-Wpedantic'], label: '-std=c17 -O0 -Wall -Wextra -Wpedantic (Padrão C17)' },
               ].map((preset) => {
                 const str = preset.flags.join(' ');
                 const isSelected = flagsInput.trim() === str;

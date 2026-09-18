@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, Sparkles, Sun, Moon, Wifi, WifiOff, Terminal, Download } from 'lucide-react';
+import { Play, Square, Sun, Moon, Wifi, WifiOff, Terminal, Download } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
@@ -15,7 +15,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
   const {
     runActiveFile,
     stopExecution,
-    formatActiveFile,
     vmStatus,
     isSystemReady,
     systemStatus,
@@ -72,16 +71,6 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
           </button>
         )}
-
-        {/* Botão Formatar Código (Shift+Alt+F) */}
-        <button
-          onClick={formatActiveFile}
-          title="Formatar Código (Shift+Alt+F)"
-          className="flex items-center space-x-1 px-2.5 py-1 rounded font-medium text-xs bg-[#dedede] hover:bg-[#d5d5d5] dark:bg-[#2d2d2d] dark:hover:bg-[#383838] text-[#333333] dark:text-[#cccccc] border border-[#cccccc] dark:border-[#3e3e42] shadow-xs active:scale-95 cursor-pointer transition-all"
-        >
-          <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-          <span className="hidden sm:inline">Formatar</span>
-        </button>
 
         {/* Ajuste de Tamanho da Fonte (A- / A+) */}
         <div

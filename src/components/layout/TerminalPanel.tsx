@@ -30,7 +30,18 @@ export const TerminalPanel: React.FC = () => {
     decreaseTerminalFontSize,
     resetTerminalFontSize,
   } = useEditor();
-  const [isMaximized, setIsMaximized] = useState(false);
+  const [isMaximized, setIsMaximizedState] = useState<boolean>(() => {
+    return localStorage.getItem('theprog_terminal_maximized') === 'true';
+  });
+
+  const handleToggleMaximize = () => {
+    setIsMaximizedState((prev) => {
+      const next = !prev;
+      localStorage.setItem('theprog_terminal_maximized', String(next));
+      return next;
+    });
+  };
+
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -294,7 +305,7 @@ export const TerminalPanel: React.FC = () => {
             <Trash2 className="w-3.5 h-3.5" />
           </button>
           <button
-            onClick={() => setIsMaximized(!isMaximized)}
+            onClick={handleToggleMaximize}
             title={isMaximized ? 'Restaurar Tamanho' : 'Maximizar Terminal'}
             className="p-1 rounded hover:bg-[#dedede] dark:hover:bg-[#333333] hover:text-black dark:hover:text-white cursor-pointer hidden sm:inline"
           >

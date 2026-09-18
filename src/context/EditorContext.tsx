@@ -27,10 +27,10 @@ interface EditorContextType {
   systemProgressPercent: number;
   systemStatusMessage: string;
   isTerminalMinimized: boolean;
-  setIsTerminalMinimized: (min: boolean) => void;
+  setIsTerminalMinimized: (min: boolean | ((prev: boolean) => boolean)) => void;
   isLinuxLoading: boolean;
   isSidebarOpen: boolean;
-  setIsSidebarOpen: (open: boolean) => void;
+  setIsSidebarOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   toggleSidebar: () => void;
   sidebarWidth: number;
   setSidebarWidth: (w: number) => void;
@@ -70,9 +70,39 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [vmStatus, setVmStatus] = useState<VMStatus>('idle');
   const [vmStatusMessage, setVmStatusMessage] = useState<string>('Inicializando Linux...');
   const [compilerProgress, setCompilerProgress] = useState<CompilerProgress>(getCompilerProgress());
-  const [isTerminalMinimized, setIsTerminalMinimized] = useState<boolean>(true);
+  const [isTerminalMinimized, setIsTerminalMinimizedState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('theprog_terminal_minimized');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const setIsTerminalMinimized = useCallback((min: boolean | ((prev: boolean) => boolean)) => {
+    setIsTerminalMinimizedState((prev) => {
+      const next = typeof min === 'function' ? min(prev) : min;
+      localStorage.setItem('theprog_terminal_minimized', String(next));
+      return next;
+    });
+  }, []);
+
   const [isLinuxLoading, setIsLinuxLoading] = useState<boolean>(true);
-  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+
+  const [isSidebarOpen, setIsSidebarOpenState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('theprog_sidebar_open');
+    return saved !== null ? saved === 'true' : false;
+  });
+
+  const setIsSidebarOpen = useCallback((open: boolean | ((prev: boolean) => boolean)) => {
+    setIsSidebarOpenState((prev) => {
+      const next = typeof open === 'function' ? open(prev) : open;
+      localStorage.setItem('theprog_sidebar_open', String(next));
+      return next;
+    });
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen((prev) => !prev);
+  }, [setIsSidebarOpen]);
+
+  const [isStorageLoaded, setIsStorageLoaded] = useState<boolean>(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const saved = localStorage.getItem('theprog_sidebar_width');
     return saved ? Math.max(180, Math.min(600, parseInt(saved, 10))) : 240;
@@ -178,10 +208,6 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     localStorage.setItem('theprog_sidebar_width', clamped.toString());
   };
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen((prev) => !prev);
-  };
-
   // Detecção focada em C e C++
   const detectLanguage = (filename: string): SupportedLanguage => {
     const lower = filename.toLowerCase();
@@ -215,7 +241,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [files]);
 
-  // Carrega arquivos salvos na inicialização (sem abrir nenhum documento automaticamente)
+  // Carrega arquivos salvos na inicialização e restaura abas/arquivo ativo
   useEffect(() => {
     loadAllFiles().then((loadedFiles) => {
       setFiles(loadedFiles);
@@ -224,6 +250,40 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           vmManager.syncFile(f.name, f.content);
         }
       });
+
+      // Restaura abas abertas salvas no localStorage
+      const savedTabsJson = localStorage.getItem('theprog_open_tabs');
+      const savedActiveId = localStorage.getItem('theprog_active_file_id');
+      let restoredTabs: EditorTab[] = [];
+
+      if (savedTabsJson) {
+        try {
+          const parsedIds: string[] = JSON.parse(savedTabsJson);
+          if (Array.isArray(parsedIds)) {
+            restoredTabs = parsedIds
+              .map((id) => loadedFiles.find((f) => f.id === id && !f.isFolder))
+              .filter((f): f is FileItem => !!f)
+              .map((f) => ({
+                fileId: f.id,
+                filePath: f.path,
+                title: f.name,
+                language: f.language,
+              }));
+          }
+        } catch {}
+      }
+
+      setTabs(restoredTabs);
+
+      if (savedActiveId && loadedFiles.some((f) => f.id === savedActiveId && !f.isFolder)) {
+        setActiveFileId(savedActiveId);
+      } else if (restoredTabs.length > 0) {
+        setActiveFileId(restoredTabs[restoredTabs.length - 1].fileId);
+      } else {
+        setActiveFileId(null);
+      }
+
+      setIsStorageLoaded(true);
 
       setTimeout(() => {
         setIsLinuxLoading(false);
@@ -254,6 +314,23 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       unsubscribeCompiler();
     };
   }, []);
+
+  // Persiste abas abertas no localStorage após a inicialização
+  useEffect(() => {
+    if (!isStorageLoaded) return;
+    const tabIds = tabs.map((t) => t.fileId);
+    localStorage.setItem('theprog_open_tabs', JSON.stringify(tabIds));
+  }, [tabs, isStorageLoaded]);
+
+  // Persiste arquivo ativo no localStorage após a inicialização
+  useEffect(() => {
+    if (!isStorageLoaded) return;
+    if (activeFileId) {
+      localStorage.setItem('theprog_active_file_id', activeFileId);
+    } else {
+      localStorage.removeItem('theprog_active_file_id');
+    }
+  }, [activeFileId, isStorageLoaded]);
 
   const activeFile = files.find((f) => f.id === activeFileId) || null;
 
@@ -637,7 +714,7 @@ function getFilesInProjectScope(files: FileItem[], activeFile: FileItem): FileIt
 
       vmManager.runCode(activeFile.name, folderFiles, compilerFlags, vfsFiles, handleFilesUpdated);
     },
-    [activeFile, files, isSystemReady, systemProgressPercent, compilerFlags]
+    [activeFile, files, isSystemReady, systemProgressPercent, compilerFlags, setIsTerminalMinimized]
   );
 
   const formatActiveFile = useCallback(async () => {

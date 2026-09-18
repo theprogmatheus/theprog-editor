@@ -230,6 +230,8 @@ class VMManager {
 
       this.setStatus('running', `Executando ${binaryName}...`);
 
+      const startTime = performance.now();
+
       const exitCode = await executeWasmBinary(binaryName, wasmBinary, {
         onOutput: (out) => this.emitOutput(out),
         onNeedStdin: () => {
@@ -244,6 +246,9 @@ class VMManager {
         onFsSync: onFilesUpdated,
       });
 
+      const durationMs = performance.now() - startTime;
+      const durationFormatted = (durationMs / 1000).toFixed(3) + 's';
+
       this.currentWasmController = null;
       this.currentAbortController = null;
       this.isAwaitingProgramInput = false;
@@ -252,9 +257,9 @@ class VMManager {
 
       this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Concluído' : 'Finalizado com erro');
       if (exitCode === 0) {
-        this.emitOutput('\r\n\x1b[90m[Processo finalizado com sucesso]\x1b[0m\r\n');
+        this.emitOutput(`\r\n\x1b[90m[Processo finalizado com sucesso em ${durationFormatted}]\x1b[0m\r\n`);
       } else {
-        this.emitOutput(`\r\n\x1b[31m[Processo finalizado com código ${exitCode}]\x1b[0m\r\n`);
+        this.emitOutput(`\r\n\x1b[31m[Processo finalizado com código ${exitCode} em ${durationFormatted}]\x1b[0m\r\n`);
       }
     } catch (err: any) {
       console.error('Erro na execução:', err);
