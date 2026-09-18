@@ -54,11 +54,14 @@ export const EditorArea: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setTabContextMenu(null);
     };
+
+    window.addEventListener('theprog-close-context-menu', handleClose);
     if (tabContextMenu) {
       window.addEventListener('click', handleClose);
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
+      window.removeEventListener('theprog-close-context-menu', handleClose);
       window.removeEventListener('click', handleClose);
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -241,9 +244,11 @@ export const EditorArea: React.FC = () => {
                 setDragOverTabIndex(null);
               }}
               onClick={() => openFile(tab.fileId)}
+              data-tab-item="true"
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
                 setTabContextMenu({ x: e.clientX, y: e.clientY, fileId: tab.fileId });
               }}
               className={`h-full flex items-center space-x-2 px-3 text-xs border-r border-[#e5e5e5] dark:border-[#202020] cursor-pointer transition-colors group relative shrink-0 ${

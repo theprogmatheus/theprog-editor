@@ -34,15 +34,26 @@ export const GlobalContextMenu: React.FC<GlobalContextMenuProps> = ({
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
-      // Impede 100% o menu de contexto padrão do navegador em qualquer elemento
+      // Impede o menu de contexto padrão do navegador em qualquer elemento
       e.preventDefault();
 
-      // Se o clique veio de dentro do editor Monaco, Monaco gerencia seu próprio menu customizado
       const target = e.target as HTMLElement | null;
-      if (target?.closest('.monaco-editor') || target?.closest('.monaco-menu')) {
+
+      // Se o clique veio de áreas com menu de contexto próprio, delega e não abre o menu global:
+      if (
+        target?.closest('.monaco-editor') ||
+        target?.closest('.monaco-menu') ||
+        target?.closest('aside') || // Explorador de arquivos (Sidebar)
+        target?.closest('[data-context-menu="sidebar"]') ||
+        target?.closest('[data-terminal-container]') ||
+        target?.closest('[data-tab-item]')
+      ) {
         setPosition(null);
         return;
       }
+
+      // Fecha qualquer outro menu aberto antes de abrir o global
+      window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
 
       // Abre o menu de contexto global customizado
       const menuWidth = 200;
@@ -52,18 +63,20 @@ export const GlobalContextMenu: React.FC<GlobalContextMenuProps> = ({
       setPosition({ x, y });
     };
 
-    const handleClick = () => setPosition(null);
+    const handleClose = () => setPosition(null);
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setPosition(null);
     };
 
     window.addEventListener('contextmenu', handleContextMenu);
-    window.addEventListener('click', handleClick);
+    window.addEventListener('theprog-close-context-menu', handleClose);
+    window.addEventListener('click', handleClose);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
       window.removeEventListener('contextmenu', handleContextMenu);
-      window.removeEventListener('click', handleClick);
+      window.removeEventListener('theprog-close-context-menu', handleClose);
+      window.removeEventListener('click', handleClose);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, []);

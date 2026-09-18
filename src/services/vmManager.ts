@@ -5,7 +5,7 @@ type OutputListener = (data: string) => void;
 type StatusListener = (status: VMStatus, message?: string) => void;
 
 class VMManager {
-  public readonly PROMPT = 'theprog-editor:~$ ';
+  public readonly PROMPT = '~$ ';
   private status: VMStatus = 'idle';
   private outputListeners: Set<OutputListener> = new Set();
   private statusListeners: Set<StatusListener> = new Set();

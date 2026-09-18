@@ -18,7 +18,7 @@ const MainLayout: React.FC = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVMModalOpen, setIsVMModalOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const { isLinuxLoading, vmStatusMessage } = useEditor();
+  const { isSystemReady, systemProgressPercent, systemStatusMessage, systemStatus } = useEditor();
 
   useEffect(() => {
     document.title = 'TheProg Editor';
@@ -69,8 +69,13 @@ const MainLayout: React.FC = () => {
         onOpenHelp={() => setIsHelpOpen(true)}
       />
 
-      {/* Loading bloqueante enquanto Linux inicializa */}
-      <LinuxLoadingScreen isLoading={isLinuxLoading} statusMessage={vmStatusMessage} />
+      {/* Loading bloqueante até o sistema estar 100% carregado */}
+      <LinuxLoadingScreen
+        isLoading={!isSystemReady}
+        progressPercent={systemProgressPercent}
+        statusMessage={systemStatusMessage}
+        isError={systemStatus === 'error'}
+      />
     </div>
   );
 };

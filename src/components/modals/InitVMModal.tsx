@@ -152,10 +152,10 @@ export const InitVMModal: React.FC<InitVMModalProps> = ({ isOpen, onClose }) => 
             </div>
           </div>
 
-          {/* Card 3: Isolamento de Origem & Suporte a Stdin (VPS / Docker) */}
+          {/* Card 3: Entrada Interativa no Terminal (scanf / cin) */}
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-md space-y-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-black dark:text-white">3. Isolamento de Origem & Entrada (scanf)</span>
+              <span className="font-semibold text-black dark:text-white">3. Entrada Interativa no Terminal (scanf / cin)</span>
               <span
                 className={`px-2 py-0.5 rounded text-[11px] border flex items-center space-x-1 ${
                   isCoiActive
@@ -166,24 +166,34 @@ export const InitVMModal: React.FC<InitVMModalProps> = ({ isOpen, onClose }) => 
                 {isCoiActive ? (
                   <>
                     <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                    <span>Cross-Origin Ativo</span>
+                    <span>Disponível em Tempo Real</span>
                   </>
                 ) : (
                   <>
                     <ShieldAlert className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                    <span>Sem Headers COOP/COEP</span>
+                    <span>Requer Acesso Oficial</span>
                   </>
                 )}
               </span>
             </div>
             <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
               {isCoiActive
-                ? 'Ambiente com Cross-Origin Isolation ativado. Entrada interativa com scanf() e cin funciona nativamente em tempo real.'
-                : 'O GitHub Pages é uma CDN estática que não suporta cabeçalhos HTTP customizados (COOP/COEP). Por segurança do navegador, SharedArrayBuffer fica desabilitado.'}
+                ? 'Seu navegador está operando com suporte completo a execução interativa. Entradas de dados em chamadas como scanf() e cin são capturadas diretamente no terminal em tempo real.'
+                : 'Para digitar entradas interativas em tempo real durante a execução do código, acesse o TheProg Editor através do endereço oficial com aceleração ou instale como aplicativo (PWA).'}
             </p>
-            <div className="p-2 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-[11px] text-amber-800 dark:text-amber-300">
-              <strong>Hospedagem em VPS via Docker:</strong> Para habilitar scanf/cin interativo completo, execute a imagem Docker do TheProg Editor em uma VPS com os headers de isolamento configurados no Nginx.
-            </div>
+            {!isCoiActive && (
+              <div className="p-2 rounded bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-[11px] text-blue-800 dark:text-blue-300 flex items-center justify-between">
+                <span>Endereço oficial: <strong>https://matheus.eti.br/theprog-editor</strong></span>
+                <a
+                  href="https://matheus.eti.br/theprog-editor"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2.5 py-1 bg-[#007acc] text-white rounded hover:bg-[#0062a3] text-[11px] font-medium"
+                >
+                  Acessar
+                </a>
+              </div>
+            )}
           </div>
 
           {/* Imagem Alpine Opcional */}

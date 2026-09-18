@@ -81,7 +81,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               <span>3. Terminal Integrado Linux</span>
             </div>
             <p className="text-[#666666] dark:text-[#aaaaaa] leading-relaxed">
-              O painel inferior conta com um terminal padrão Linux (prompt <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">theprog-editor:~$</code>).
+              O painel inferior conta com um terminal padrão Linux (prompt <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">~$</code>).
               Suporta navegação no <strong>histórico de comandos</strong> (setas Cima / Baixo), <strong>autocompletion inteligente</strong> de comandos e arquivos (tecla Tab), edição com setas Esquerda/Direita e blindagem de output.
               Ao pressionar <strong>Executar (F5)</strong>, o terminal é exibido automaticamente com a execução limpa do seu código.
             </p>

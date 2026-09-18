@@ -50,6 +50,11 @@ interface EditorContextType {
   increaseFontSize: () => void;
   decreaseFontSize: () => void;
   resetFontSize: () => void;
+  terminalFontSize: number;
+  setTerminalFontSize: (size: number) => void;
+  increaseTerminalFontSize: () => void;
+  decreaseTerminalFontSize: () => void;
+  resetTerminalFontSize: () => void;
 }
 
 const EditorContext = createContext<EditorContextType | undefined>(undefined);
@@ -100,6 +105,39 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const resetFontSize = useCallback(() => {
     setFontSize(14);
     localStorage.setItem('theprog_editor_font_size', '14');
+  }, []);
+
+  // Tamanho da fonte do Terminal (Padrão 14)
+  const [terminalFontSize, setTerminalFontSize] = useState<number>(() => {
+    const saved = localStorage.getItem('theprog_terminal_font_size');
+    return saved ? Math.max(10, Math.min(32, parseInt(saved, 10))) : 14;
+  });
+
+  const handleSetTerminalFontSize = useCallback((size: number) => {
+    const clamped = Math.max(10, Math.min(32, size));
+    setTerminalFontSize(clamped);
+    localStorage.setItem('theprog_terminal_font_size', clamped.toString());
+  }, []);
+
+  const increaseTerminalFontSize = useCallback(() => {
+    setTerminalFontSize((prev) => {
+      const next = Math.min(32, prev + 1);
+      localStorage.setItem('theprog_terminal_font_size', next.toString());
+      return next;
+    });
+  }, []);
+
+  const decreaseTerminalFontSize = useCallback(() => {
+    setTerminalFontSize((prev) => {
+      const next = Math.max(10, prev - 1);
+      localStorage.setItem('theprog_terminal_font_size', next.toString());
+      return next;
+    });
+  }, []);
+
+  const resetTerminalFontSize = useCallback(() => {
+    setTerminalFontSize(14);
+    localStorage.setItem('theprog_terminal_font_size', '14');
   }, []);
 
   const saveTimeouts = useRef<Map<string, any>>(new Map());
@@ -570,6 +608,11 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         increaseFontSize,
         decreaseFontSize,
         resetFontSize,
+        terminalFontSize,
+        setTerminalFontSize: handleSetTerminalFontSize,
+        increaseTerminalFontSize,
+        decreaseTerminalFontSize,
+        resetTerminalFontSize,
       }}
     >
       {children}

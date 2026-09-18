@@ -1,8 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-import { Terminal as TerminalIcon, Trash2, ChevronUp, ChevronDown, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  Terminal as TerminalIcon,
+  Trash2,
+  ChevronUp,
+  ChevronDown,
+  Maximize2,
+  Minimize2,
+  Copy,
+  ClipboardPaste,
+  CheckSquare,
+  Square,
+} from 'lucide-react';
 import { vmManager } from '../../services/vmManager';
 import { useTheme } from '../../context/ThemeContext';
 import { useEditor } from '../../context/EditorContext';
@@ -12,18 +23,28 @@ export const TerminalPanel: React.FC = () => {
   const xtermInstance = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const { theme } = useTheme();
-  const { isTerminalMinimized, setIsTerminalMinimized } = useEditor();
+  const {
+    isTerminalMinimized,
+    setIsTerminalMinimized,
+    terminalFontSize,
+    increaseTerminalFontSize,
+    decreaseTerminalFontSize,
+    resetTerminalFontSize,
+    stopExecution,
+  } = useEditor();
   const [isMaximized, setIsMaximized] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!terminalRef.current) return;
 
     // Instancia o Xterm com fundo exatamente idêntico ao Monaco Editor (#1e1e1e escuro / #ffffff claro)
+    const initialFontSize = terminalFontSize;
     const term = new XTerm({
       cursorBlink: true,
       allowTransparency: true,
       fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
-      fontSize: 13,
+      fontSize: initialFontSize,
       lineHeight: 1.2,
       theme:
         theme === 'dark'
@@ -134,6 +155,36 @@ export const TerminalPanel: React.FC = () => {
     }
   }, [isTerminalMinimized, isMaximized]);
 
+  // Atualiza a fonte do terminal dinamicamente quando alterada
+  useEffect(() => {
+    if (xtermInstance.current) {
+      xtermInstance.current.options.fontSize = terminalFontSize;
+      if (fitAddonRef.current) {
+        try {
+          fitAddonRef.current.fit();
+        } catch {}
+      }
+    }
+  }, [terminalFontSize]);
+
+  // Fecha o menu de contexto do terminal ao clicar fora, apertar ESC ou abrir outro menu
+  useEffect(() => {
+    const handleClose = () => setContextMenu(null);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+
+    window.addEventListener('theprog-close-context-menu', handleClose);
+    window.addEventListener('click', handleClose);
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('theprog-close-context-menu', handleClose);
+      window.removeEventListener('click', handleClose);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
   const handleClear = () => {
     if (xtermInstance.current) {
       xtermInstance.current.reset();
@@ -141,9 +192,43 @@ export const TerminalPanel: React.FC = () => {
     vmManager.clearTerminal();
   };
 
+  const handleCopy = useCallback(async () => {
+    setContextMenu(null);
+    const selection = xtermInstance.current?.getSelection();
+    if (selection) {
+      try {
+        await navigator.clipboard.writeText(selection);
+      } catch (err) {
+        console.warn('Erro ao copiar seleção do terminal:', err);
+      }
+    }
+  }, []);
+
+  const handlePaste = useCallback(async () => {
+    setContextMenu(null);
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        vmManager.sendInput(text);
+      }
+    } catch (err) {
+      console.warn('Permissão de clipboard necessária para colar no terminal:', err);
+    }
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setContextMenu(null);
+    xtermInstance.current?.selectAll();
+  }, []);
+
+  const handleStop = useCallback(() => {
+    setContextMenu(null);
+    stopExecution();
+  }, [stopExecution]);
+
   return (
     <div
-      className={`flex flex-col border-t border-[#e5e5e5] dark:border-[#252526] bg-white dark:bg-[#1e1e1e] transition-all duration-150 ${
+      className={`flex flex-col border-t border-[#e5e5e5] dark:border-[#252526] bg-white dark:bg-[#1e1e1e] transition-all duration-150 relative ${
         isTerminalMinimized ? 'h-8' : isMaximized ? 'h-[75vh]' : 'h-64'
       }`}
     >
@@ -156,8 +241,38 @@ export const TerminalPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Controles limpos do terminal */}
-        <div className="flex items-center space-x-1 text-[#666666] dark:text-[#aaaaaa]">
+        {/* Controles do terminal */}
+        <div className="flex items-center space-x-2 text-[#666666] dark:text-[#aaaaaa]">
+          {/* Ajuste de Tamanho da Fonte do Terminal (A- / A+) */}
+          <div
+            className="flex items-center bg-[#dedede] dark:bg-[#1e1e1e] border border-[#cccccc] dark:border-[#3e3e42] rounded px-1 py-0.5 space-x-1"
+            title="Tamanho da fonte do terminal"
+          >
+            <button
+              onClick={decreaseTerminalFontSize}
+              title="Diminuir fonte do terminal"
+              className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#cccccc] dark:hover:bg-[#383838] font-semibold text-[10px] text-[#444444] dark:text-[#cccccc] cursor-pointer transition-colors"
+            >
+              A-
+            </button>
+            <button
+              onClick={resetTerminalFontSize}
+              title="Clique para redefinir a fonte para 14px"
+              className="px-1 text-[10px] font-mono text-[#555555] dark:text-[#aaaaaa] hover:text-[#007acc] dark:hover:text-[#3794ff] cursor-pointer"
+            >
+              {terminalFontSize}px
+            </button>
+            <button
+              onClick={increaseTerminalFontSize}
+              title="Aumentar fonte do terminal"
+              className="w-4 h-4 flex items-center justify-center rounded hover:bg-[#cccccc] dark:hover:bg-[#383838] font-semibold text-[10px] text-[#444444] dark:text-[#cccccc] cursor-pointer transition-colors"
+            >
+              A+
+            </button>
+          </div>
+
+          <div className="h-4 w-px bg-[#cccccc] dark:bg-[#3e3e42]" />
+
           <button
             onClick={handleClear}
             title="Limpar Terminal"
@@ -182,12 +297,87 @@ export const TerminalPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Área do Terminal Xterm - fundo exatamente idêntico ao editor */}
+      {/* Área do Terminal Xterm com Menu de Contexto Próprio */}
       <div
         style={{ display: isTerminalMinimized ? 'none' : 'block' }}
-        className="flex-1 w-full overflow-hidden bg-white dark:bg-[#1e1e1e]"
+        data-terminal-container="true"
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
+          const menuWidth = 190;
+          const menuHeight = 190;
+          const x = Math.min(e.clientX, window.innerWidth - menuWidth - 10);
+          const y = Math.min(e.clientY, window.innerHeight - menuHeight - 10);
+          setContextMenu({ x, y });
+        }}
+        className="flex-1 w-full overflow-hidden bg-white dark:bg-[#1e1e1e] relative"
       >
         <div ref={terminalRef} className="w-full h-full" />
+
+        {/* Menu de Contexto Útil do Terminal */}
+        {contextMenu && (
+          <div
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            className="fixed z-50 min-w-[190px] py-1.5 bg-[#f3f3f3] dark:bg-[#252526] text-[#333333] dark:text-[#cccccc] rounded-md shadow-2xl border border-[#cccccc] dark:border-[#454545] text-xs select-none animate-in fade-in zoom-in-95 duration-100"
+          >
+            <button
+              onClick={handleCopy}
+              className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+            >
+              <div className="flex items-center space-x-2.5">
+                <Copy className="w-3.5 h-3.5" />
+                <span>Copiar</span>
+              </div>
+              <span className="text-[10px] opacity-60">Ctrl+Shift+C</span>
+            </button>
+
+            <button
+              onClick={handlePaste}
+              className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+            >
+              <div className="flex items-center space-x-2.5">
+                <ClipboardPaste className="w-3.5 h-3.5" />
+                <span>Colar</span>
+              </div>
+              <span className="text-[10px] opacity-60">Ctrl+Shift+V</span>
+            </button>
+
+            <button
+              onClick={handleSelectAll}
+              className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+            >
+              <div className="flex items-center space-x-2.5">
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Selecionar Tudo</span>
+              </div>
+            </button>
+
+            <div className="my-1 border-t border-[#e0e0e0] dark:border-[#383838]" />
+
+            <button
+              onClick={() => {
+                setContextMenu(null);
+                handleClear();
+              }}
+              className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Limpar Terminal</span>
+            </button>
+
+            <button
+              onClick={handleStop}
+              className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-[#e51400] hover:text-white cursor-pointer transition-colors text-left text-rose-600 dark:text-rose-400"
+            >
+              <div className="flex items-center space-x-2.5">
+                <Square className="w-3.5 h-3.5 fill-current" />
+                <span>Interromper</span>
+              </div>
+              <span className="text-[10px] opacity-75">Ctrl+C</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

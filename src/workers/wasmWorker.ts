@@ -57,10 +57,10 @@ self.onmessage = async (event: MessageEvent) => {
         return { ret: 0, data: new Uint8Array(0) };
       }
 
-      // Ambiente sem suporte a SharedArrayBuffer (ex: GitHub Pages / host estático sem headers COOP/COEP)
+      // Ambiente sem suporte a SharedArrayBuffer no navegador
       self.postMessage({
         type: 'stdout',
-        text: '\r\n\x1b[33m[Aviso: Entrada interativa (scanf/cin) indisponível neste ambiente]\x1b[0m\r\n\x1b[90mMotivo: O navegador requer isolamento de origem (Cross-Origin Isolation via headers HTTP COOP e COEP) para sincronizar o terminal e o WebAssembly via SharedArrayBuffer. No GitHub Pages esses headers não podem ser configurados.\r\nPara habilitar scanf/cin interativo completo, hospede o TheProg Editor via Docker em sua VPS com os cabeçalhos COOP/COEP configurados.\x1b[0m\r\n',
+        text: '\r\n\x1b[33m[Aviso: Entrada interativa (scanf/cin)]\x1b[0m\r\n\x1b[90mPara executar programas com entrada de dados interativa no terminal, acesse o TheProg Editor pelo endereço oficial:\x1b[0m\r\n\x1b[36m👉 https://matheus.eti.br/theprog-editor\x1b[0m\r\n\x1b[90mOu instale o aplicativo (PWA) no seu dispositivo para compatibilidade total.\x1b[0m\r\n',
       });
       return { ret: 0, data: new Uint8Array(0) };
     }

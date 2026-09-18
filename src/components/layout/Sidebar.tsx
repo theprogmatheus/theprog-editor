@@ -63,18 +63,20 @@ export const Sidebar: React.FC = () => {
 
   const sidebarRef = useRef<HTMLElement>(null);
 
-  // Fecha o menu de contexto ao clicar fora ou apertar Escape
+  // Fecha o menu de contexto ao clicar fora, apertar Escape ou ao abrir outro menu
   useEffect(() => {
     const handleClose = () => setContextMenu(null);
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setContextMenu(null);
     };
 
+    window.addEventListener('theprog-close-context-menu', handleClose);
     if (contextMenu) {
       window.addEventListener('click', handleClose);
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => {
+      window.removeEventListener('theprog-close-context-menu', handleClose);
       window.removeEventListener('click', handleClose);
       window.removeEventListener('keydown', handleKeyDown);
     };
@@ -347,6 +349,7 @@ export const Sidebar: React.FC = () => {
                   onContextMenu={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
+                    window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
                     setContextMenu({ x: e.clientX, y: e.clientY, file: item });
                   }}
                   style={{ paddingLeft: `${8 + depth * 14}px` }}
@@ -452,6 +455,7 @@ export const Sidebar: React.FC = () => {
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
                 setContextMenu({ x: e.clientX, y: e.clientY, file: item });
               }}
               style={{ paddingLeft: `${18 + depth * 14}px` }}
@@ -514,8 +518,11 @@ export const Sidebar: React.FC = () => {
     <aside
       ref={sidebarRef}
       style={{ width: `${sidebarWidth}px` }}
+      data-context-menu="sidebar"
       onContextMenu={(e) => {
         e.preventDefault();
+        e.stopPropagation();
+        window.dispatchEvent(new CustomEvent('theprog-close-context-menu'));
         setContextMenu({ x: e.clientX, y: e.clientY, file: null });
       }}
       className="relative flex flex-col bg-[#f3f3f3] dark:bg-[#181818] border-r border-[#e5e5e5] dark:border-[#252526] select-none text-[#333333] dark:text-[#cccccc] text-xs h-full shrink-0 transition-[background-color,border-color] duration-150"
