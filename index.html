@@ -2,19 +2,6 @@
 <html lang="pt-BR" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <script>
-      // Garante que em ambientes estáticos sem headers nativos (ex: GitHub Pages),
-      // assim que o Service Worker (com injeção de COOP/COEP) estiver ativo,
-      // a página recarregue uma única vez para obter suporte completo a SharedArrayBuffer e Atomics.
-      if (window.crossOriginIsolated === false && 'serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then(() => {
-          if (!sessionStorage.getItem('theprog_coi_ready')) {
-            sessionStorage.setItem('theprog_coi_ready', '1');
-            window.location.reload();
-          }
-        });
-      }
-    </script>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#1e1e1e" />

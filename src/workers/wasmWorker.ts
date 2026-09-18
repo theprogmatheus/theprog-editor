@@ -1,7 +1,7 @@
 import { wasi, WASI, File, OpenFile, PreopenDirectory } from '@bjorn3/browser_wasi_shim';
 
 self.onmessage = async (event: MessageEvent) => {
-  const { wasmBinary, sab, binaryName } = event.data;
+  const { wasmBinary, sab, binaryName, initialStdin } = event.data;
 
   const hasSab = Boolean(sab && typeof SharedArrayBuffer !== 'undefined' && sab instanceof SharedArrayBuffer);
   const control = hasSab && sab ? new Int32Array(sab, 0, 2) : null;
@@ -11,8 +11,12 @@ self.onmessage = async (event: MessageEvent) => {
     private buffer: Uint8Array = new Uint8Array(0);
     private pos: number = 0;
 
-    constructor() {
+    constructor(initialInput?: string) {
       super(new File([]));
+      if (initialInput && initialInput.length > 0) {
+        const text = initialInput.endsWith('\n') ? initialInput : initialInput + '\n';
+        this.buffer = new TextEncoder().encode(text);
+      }
     }
 
     override fd_fdstat_get() {
@@ -50,18 +54,14 @@ self.onmessage = async (event: MessageEvent) => {
           this.pos = 0;
 
           const chunk = this.buffer.slice(0, size);
-          this.pos = chunk.length;
+          this.pos += chunk.length;
           return { ret: 0, data: chunk };
         }
 
         return { ret: 0, data: new Uint8Array(0) };
       }
 
-      // Fallback amigável caso SharedArrayBuffer ainda não esteja ativo
-      self.postMessage({
-        type: 'stdout',
-        text: '\r\n\x1b[33m[Aviso: Entrada interativa (scanf/cin) requer Cross-Origin Isolation (SharedArrayBuffer). Ative recarregando a página.]\x1b[0m\r\n',
-      });
+      // Buffer pré-carregado esgotado e sem SharedArrayBuffer: retorna EOF (fim de arquivo)
       return { ret: 0, data: new Uint8Array(0) };
     }
   }
@@ -84,7 +84,7 @@ self.onmessage = async (event: MessageEvent) => {
 
   try {
     const fds = [
-      new WorkerStdin(),
+      new WorkerStdin(initialStdin),
       new WorkerStdout(),
       new WorkerStdout(),
       new PreopenDirectory('.', new Map()),
