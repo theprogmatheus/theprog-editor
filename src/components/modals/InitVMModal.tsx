@@ -9,7 +9,7 @@ interface InitVMModalProps {
 }
 
 export const InitVMModal: React.FC<InitVMModalProps> = ({ isOpen, onClose }) => {
-  const { vmStatus, vmStatusMessage } = useEditor();
+  const { vmStatus, vmStatusMessage, compilerProgress } = useEditor();
   const [customUrl, setCustomUrl] = useState('');
   const [isBooting, setIsBooting] = useState(false);
 
@@ -29,7 +29,7 @@ export const InitVMModal: React.FC<InitVMModalProps> = ({ isOpen, onClose }) => 
         <div className="h-11 px-4 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#333333]">
           <div className="flex items-center space-x-2">
             <Server className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-            <h2 className="text-sm font-semibold text-black dark:text-white">Ambiente Linux Isolado (v86 + Alpine)</h2>
+            <h2 className="text-sm font-semibold text-black dark:text-white">Ambiente de Execução e VM</h2>
           </div>
           <button
             onClick={onClose}
@@ -41,16 +41,40 @@ export const InitVMModal: React.FC<InitVMModalProps> = ({ isOpen, onClose }) => 
 
         {/* Conteúdo */}
         <div className="p-5 space-y-4 text-xs">
+          {/* Card Modo Integrado (Clang Wasm) */}
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-md space-y-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-black dark:text-white">Status da Máquina Virtual</span>
+              <span className="font-semibold text-black dark:text-white">Compilador Clang WebAssembly (Padrão)</span>
+              <span
+                className={`px-2 py-0.5 rounded text-[11px] border ${
+                  compilerProgress.status === 'ready'
+                    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/50'
+                    : compilerProgress.status === 'preloading'
+                    ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700/50'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700'
+                }`}
+              >
+                {compilerProgress.status === 'ready'
+                  ? 'Pronto na memória'
+                  : compilerProgress.status === 'preloading'
+                  ? `Pré-carregando (${compilerProgress.percent}%)`
+                  : 'Aguardando inicialização'}
+              </span>
+            </div>
+            <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+              O TheProg Editor pré-carrega o LLVM/Clang em segundo plano com headers padrão C/C++ (glibc/libc++) para compilação local ultrarrápida (milissegundos) e 100% offline.
+            </p>
+          </div>
+
+          <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-md space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-black dark:text-white">Máquina Virtual Linux (v86)</span>
               <span className="px-2 py-0.5 rounded text-[11px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50">
                 {vmStatusMessage || vmStatus}
               </span>
             </div>
             <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
-              O TheProg Editor utiliza o emulador WebAssembly <strong>v86</strong> com BIOS SeaBIOS e VGABios
-              para executar um ambiente Linux real diretamente na aba do seu navegador, sem servidores externos.
+              Emulador x86 de baixo nível para executar um ambiente de terminal Linux completo dentro da aba do navegador.
             </p>
           </div>
 

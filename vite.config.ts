@@ -7,6 +7,22 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig({
   base: '/theprog-editor/',
   plugins: [
+    {
+      name: 'theprog-base-redirect',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          const rawUrl = req.url || '';
+          const pathOnly = rawUrl.split('?')[0];
+          if (pathOnly === '/theprog-editor') {
+            const query = rawUrl.includes('?') ? rawUrl.slice(rawUrl.indexOf('?')) : '';
+            res.writeHead(301, { Location: `/theprog-editor/${query}` });
+            res.end();
+            return;
+          }
+          next();
+        });
+      },
+    },
     react(),
     tailwindcss(),
     VitePWA({
@@ -61,6 +77,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    exclude: ['v86'],
+    exclude: ['v86', '@yowasp/clang'],
   },
 });

@@ -1,8 +1,8 @@
-import React from 'react';
 import { X, Moon, Sun, RotateCcw, Monitor } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
 import { defaultFiles, saveFileToStorage } from '../../services/storage';
+import { APP_VERSION } from '../../config/version';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -36,7 +36,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
       <div className="w-full max-w-md bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#3e3e42] rounded-lg shadow-2xl text-[#333333] dark:text-[#cccccc] overflow-hidden transition-colors">
         {/* Cabeçalho */}
         <div className="h-11 px-4 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#333333]">
-          <h2 className="text-sm font-semibold text-black dark:text-white">Configurações</h2>
+          <div className="flex items-center space-x-2">
+            <h2 className="text-sm font-semibold text-black dark:text-white">Configurações</h2>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#007acc]/10 dark:bg-[#3794ff]/15 text-[#007acc] dark:text-[#3794ff] border border-[#007acc]/25 dark:border-[#3794ff]/25 font-normal">
+              v{APP_VERSION}
+            </span>
+          </div>
           <button
             onClick={onClose}
             className="p-1 rounded hover:bg-[#ececec] dark:hover:bg-[#333333] text-[#777777] hover:text-black dark:hover:text-white cursor-pointer"

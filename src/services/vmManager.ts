@@ -1,8 +1,5 @@
 import type { VMStatus } from '../types/editor';
 import { compileC, executeWasmBinary } from './cCompiler';
-import { executeJsCode } from './jsRunner';
-import { executePythonCode } from './pythonRunner';
-import { executeJavaCode } from './javaRunner';
 
 type OutputListener = (data: string) => void;
 type StatusListener = (status: VMStatus, message?: string) => void;
@@ -372,7 +369,7 @@ class VMManager {
 
     const isFirstToken = tokens.length === 1;
     const commandCandidates = [
-      'gcc', 'g++', 'clear', 'ls', 'cat', 'pwd', 'whoami', 'uname', 'python3', 'python', 'bash', 'sh', './main'
+      'gcc', 'g++', 'clear', 'ls', 'cat', 'pwd', 'whoami', 'uname', './main'
     ];
     const fileCandidates = Array.from(this.activeFiles.keys());
 
@@ -532,53 +529,6 @@ class VMManager {
         }
       }
 
-      case 'python':
-      case 'python3': {
-        const pyFile = parts[1];
-        if (pyFile && this.activeFiles.has(pyFile)) {
-          await this.compileAndRun(pyFile, this.activeFiles.get(pyFile)!);
-          return true;
-        }
-        this.emitOutput(`python3: can't open file '${pyFile || ''}': [Errno 2] No such file or directory\r\n`);
-        return false;
-      }
-
-      case 'node':
-      case 'js':
-      case 'ts-node': {
-        const jsFile = parts[1];
-        if (jsFile && this.activeFiles.has(jsFile)) {
-          await this.compileAndRun(jsFile, this.activeFiles.get(jsFile)!);
-          return true;
-        }
-        this.emitOutput(`${cmd}: cannot find module '${jsFile || ''}'\r\n`);
-        return false;
-      }
-
-      case 'javac':
-      case 'java': {
-        const jFile = parts[1];
-        const target = jFile?.endsWith('.java') ? jFile : `${jFile}.java`;
-        if (jFile && (this.activeFiles.has(jFile) || this.activeFiles.has(target))) {
-          const actual = this.activeFiles.has(jFile) ? jFile : target;
-          await this.compileAndRun(actual, this.activeFiles.get(actual)!);
-          return true;
-        }
-        this.emitOutput(`${cmd}: file or class not found: ${jFile || ''}\r\n`);
-        return false;
-      }
-
-      case 'sh':
-      case 'bash': {
-        const shFile = parts[1];
-        if (shFile && this.activeFiles.has(shFile)) {
-          await this.compileAndRun(shFile, this.activeFiles.get(shFile)!);
-          return true;
-        }
-        this.emitOutput(`bash: ${shFile || ''}: No such file or directory\r\n`);
-        return false;
-      }
-
       default: {
         // Se for execução de binário, ex: ./main ou main
         if (cmd.startsWith('./') || this.compiledBinaries.has(cmd)) {
@@ -635,173 +585,93 @@ class VMManager {
     const lower = filename.toLowerCase();
     const isC = lower.endsWith('.c');
     const isCpp = lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx');
-    const isPython = lower.endsWith('.py');
-    const isJs = lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs');
-    const isTs = lower.endsWith('.ts') || lower.endsWith('.tsx');
-    const isJava = lower.endsWith('.java');
-    const isShell = lower.endsWith('.sh') || lower.endsWith('.bash');
+    const isHeader = lower.endsWith('.h') || lower.endsWith('.hpp');
     const binaryName = filename.replace(/\.[^/.]+$/, '');
 
-    // Se for C/C++
-    if (isC || isCpp) {
-      const compiler = isCpp ? 'g++' : 'gcc';
-      const sources: string[] = [filename];
-      // Inclui todos os outros arquivos de código .c / .cpp do workspace para linkagem automática
-      this.activeFiles.forEach((_, name) => {
-        if (name !== filename && (name.endsWith('.c') || name.endsWith('.cpp'))) {
+    // Se for cabeçalho
+    if (isHeader) {
+      this.emitOutput(`\r\x1b[K${this.PROMPT}\r\n\x1b[33mAviso: '${filename}' é um arquivo de cabeçalho (.h/.hpp). Para executar, abra o arquivo .c ou .cpp correspondente.\x1b[0m\r\n`);
+      this.isExecuting = false;
+      this.setStatus('ready', 'Pronto');
+      this.emitOutput(this.PROMPT);
+      return;
+    }
+
+    // Se não for C nem C++
+    if (!isC && !isCpp) {
+      this.emitOutput(`\r\x1b[K${this.PROMPT}\r\n\x1b[33mO TheProg Editor é focado exclusivamente em C e C++ (.c, .cpp). Para executar seu código, abra um arquivo C ou C++.\x1b[0m\r\n`);
+      this.isExecuting = false;
+      this.setStatus('ready', 'Pronto');
+      this.emitOutput(this.PROMPT);
+      return;
+    }
+
+    const compiler = isCpp ? 'g++' : 'gcc';
+    const sources: string[] = [filename];
+
+    // Inclui arquivos auxiliares .c / .cpp do workspace, excluindo arquivos que tenham sua própria função main()
+    this.activeFiles.forEach((content, name) => {
+      if (name !== filename && (name.endsWith('.c') || name.endsWith('.cpp'))) {
+        const hasMain = /\b(?:int|void)\s+main\s*\(/.test(content);
+        if (!hasMain) {
           sources.push(name);
         }
+      }
+    });
+
+    const sourcesStr = sources.join(' ');
+    this.emitOutput(`\r\x1b[K${this.PROMPT}${compiler} ${sourcesStr} -o ${binaryName} && ./${binaryName}\r\n`);
+
+    if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
+      this.syncFile(filename, code);
+      this.v86Instance.serial0_send(`${compiler} ${sourcesStr} -o ${binaryName} && ./${binaryName}\n`);
+      this.isExecuting = false;
+      this.setStatus('ready');
+      return;
+    }
+
+    // Compilação real nativa com Clang WebAssembly + WASI
+    try {
+      const wasmBinary = await compileC(sources, this.activeFiles, binaryName, (out) => {
+        this.emitOutput(out);
       });
 
-      const sourcesStr = sources.join(' ');
-      this.emitOutput(`\r\x1b[K${this.PROMPT}${compiler} ${sourcesStr} -o ${binaryName} && ./${binaryName}\r\n`);
-
-      if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
-        this.syncFile(filename, code);
-        this.v86Instance.serial0_send(`${compiler} ${sourcesStr} -o ${binaryName} && ./${binaryName}\n`);
-        this.isExecuting = false;
-        this.setStatus('ready');
-        return;
-      }
-
-      // Compilação real nativa com Clang WebAssembly + WASI
-      try {
-        const wasmBinary = await compileC(sources, this.activeFiles, binaryName, (out) => {
-          this.emitOutput(out);
+      if (wasmBinary) {
+        this.compiledBinaries.set(binaryName, wasmBinary);
+        this.compiledBinaries.set(`./${binaryName}`, wasmBinary);
+        const exitCode = await executeWasmBinary(binaryName, wasmBinary, {
+          onOutput: (out) => this.emitOutput(out),
+          onNeedStdin: () => {
+            this.isAwaitingProgramInput = true;
+            this.stdinInputBuffer = '';
+          },
+          onControllerReady: (ctrl) => {
+            this.currentWasmController = ctrl;
+            this.currentAbortController = ctrl;
+          },
         });
-
-        if (wasmBinary) {
-          this.compiledBinaries.set(binaryName, wasmBinary);
-          this.compiledBinaries.set(`./${binaryName}`, wasmBinary);
-          const exitCode = await executeWasmBinary(binaryName, wasmBinary, {
-            onOutput: (out) => this.emitOutput(out),
-            onNeedStdin: () => {
-              this.isAwaitingProgramInput = true;
-              this.stdinInputBuffer = '';
-            },
-            onControllerReady: (ctrl) => {
-              this.currentWasmController = ctrl;
-              this.currentAbortController = ctrl;
-            },
-          });
-          this.currentWasmController = null;
-          this.currentAbortController = null;
-          this.isAwaitingProgramInput = false;
-          this.stdinInputBuffer = '';
-          this.isExecuting = false;
-          this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
-          this.emitOutput(this.PROMPT);
-          return;
-        } else {
-          this.isExecuting = false;
-          this.setStatus('error', 'Erro de compilação');
-          this.emitOutput(this.PROMPT);
-          return;
-        }
-      } catch (compileErr: any) {
-        console.warn('Erro ao compilar com Clang:', compileErr);
-        this.emitOutput(`\r\n\x1b[31merro: falha interna de compilação: ${compileErr?.message || compileErr}\x1b[0m\r\n`);
+        this.currentWasmController = null;
+        this.currentAbortController = null;
+        this.isAwaitingProgramInput = false;
+        this.stdinInputBuffer = '';
+        this.isExecuting = false;
+        this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
+        this.emitOutput(this.PROMPT);
+        return;
+      } else {
         this.isExecuting = false;
         this.setStatus('error', 'Erro de compilação');
         this.emitOutput(this.PROMPT);
         return;
       }
-    } else if (isPython) {
-      this.emitOutput(`\r\x1b[K${this.PROMPT}python3 ${filename}\r\n`);
-      if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
-        this.v86Instance.serial0_send(`python3 ${filename}\n`);
-        this.isExecuting = false;
-        this.setStatus('ready');
-        return;
-      }
-      try {
-        const exitCode = await executePythonCode(filename, code, {
-          onOutput: (out) => this.emitOutput(out),
-          onControllerReady: (ctrl) => {
-            this.currentAbortController = ctrl;
-          },
-        });
-        this.currentAbortController = null;
-        this.isExecuting = false;
-        this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
-        this.emitOutput(this.PROMPT);
-        return;
-      } catch (err: any) {
-        this.emitOutput(`\r\n\x1b[31m${err?.message || err}\x1b[0m\r\n`);
-        this.currentAbortController = null;
-        this.isExecuting = false;
-        this.setStatus('error');
-        this.emitOutput(this.PROMPT);
-        return;
-      }
-    } else if (isJs || isTs) {
-      const runnerCmd = isTs ? 'ts-node' : 'node';
-      this.emitOutput(`\r\x1b[K${this.PROMPT}${runnerCmd} ${filename}\r\n`);
-      try {
-        const exitCode = await executeJsCode(filename, code, {
-          onOutput: (out) => this.emitOutput(out),
-          onControllerReady: (ctrl) => {
-            this.currentAbortController = ctrl;
-          },
-        });
-        this.currentAbortController = null;
-        this.isExecuting = false;
-        this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
-        this.emitOutput(this.PROMPT);
-        return;
-      } catch (err: any) {
-        this.emitOutput(`\r\n\x1b[31m${err?.message || err}\x1b[0m\r\n`);
-        this.currentAbortController = null;
-        this.isExecuting = false;
-        this.setStatus('error');
-        this.emitOutput(this.PROMPT);
-        return;
-      }
-    } else if (isJava) {
-      const classMatch = code.match(/(?:public\s+)?class\s+([A-Za-z0-9_]+)/);
-      const className = classMatch ? classMatch[1] : binaryName;
-      this.emitOutput(`\r\x1b[K${this.PROMPT}javac ${filename} && java ${className}\r\n`);
-      if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
-        this.v86Instance.serial0_send(`javac ${filename} && java ${className}\n`);
-        this.isExecuting = false;
-        this.setStatus('ready');
-        return;
-      }
-      try {
-        const exitCode = await executeJavaCode(filename, code, {
-          onOutput: (out) => this.emitOutput(out),
-          onControllerReady: (ctrl) => {
-            this.currentAbortController = ctrl;
-          },
-        });
-        this.currentAbortController = null;
-        this.isExecuting = false;
-        this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Pronto' : 'Erro');
-        this.emitOutput(this.PROMPT);
-        return;
-      } catch (err: any) {
-        this.emitOutput(`\r\n\x1b[31m${err?.message || err}\x1b[0m\r\n`);
-        this.currentAbortController = null;
-        this.isExecuting = false;
-        this.setStatus('error');
-        this.emitOutput(this.PROMPT);
-        return;
-      }
-    } else if (isShell) {
-      this.emitOutput(`\r\x1b[K${this.PROMPT}bash ${filename}\r\n`);
-      if (this.v86Instance && typeof this.v86Instance.serial0_send === 'function') {
-        this.v86Instance.serial0_send(`bash ${filename}\n`);
-      } else {
-        this.emitOutput(`sh: bash: not found\r\n`);
-      }
-    } else {
-      this.emitOutput(`\r\x1b[K${this.PROMPT}cat ${filename}\r\n`);
-      this.emitOutput(code.replace(/\r?\n/g, '\r\n') + '\r\n');
+    } catch (compileErr: any) {
+      console.warn('Erro ao compilar com Clang:', compileErr);
+      this.emitOutput(`\r\n\x1b[31merro: falha interna de compilação: ${compileErr?.message || compileErr}\x1b[0m\r\n`);
+      this.isExecuting = false;
+      this.setStatus('error', 'Erro de compilação');
+      this.emitOutput(this.PROMPT);
+      return;
     }
-
-    this.isExecuting = false;
-    this.setStatus('ready', 'Pronto');
-    this.emitOutput(this.PROMPT);
   }
 }
 

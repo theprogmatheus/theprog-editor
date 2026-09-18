@@ -13,15 +13,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [theme, setThemeState] = useState<ThemeMode>('dark');
 
-  useEffect(() => {
-    loadUserSettings().then((settings) => {
-      if (settings?.theme) {
-        setTheme(settings.theme);
-      }
-    });
-  }, []);
-
-  const setTheme = (newTheme: ThemeMode) => {
+  const setTheme = React.useCallback((newTheme: ThemeMode) => {
     setThemeState(newTheme);
     const root = document.documentElement;
     if (newTheme === 'dark') {
@@ -39,7 +31,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     loadUserSettings().then((settings) => {
       saveUserSettings({ ...settings, theme: newTheme });
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    loadUserSettings().then((settings) => {
+      if (settings?.theme) {
+        setTheme(settings.theme);
+      }
+    });
+  }, [setTheme]);
 
   const toggleTheme = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');

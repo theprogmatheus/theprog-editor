@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Keyboard, FolderTree, Terminal, WifiOff, Palette } from 'lucide-react';
+import { APP_VERSION } from '../../config/version';
 
 interface HelpModalProps {
   isOpen: boolean;
@@ -14,7 +15,12 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
       <div className="w-full max-w-xl bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#3e3e42] rounded-lg shadow-2xl text-[#333333] dark:text-[#cccccc] overflow-hidden max-h-[85vh] flex flex-col transition-colors">
         {/* Cabeçalho */}
         <div className="h-11 px-4 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#333333] shrink-0">
-          <h2 className="text-sm font-semibold text-black dark:text-white">Recursos do TheProg Editor</h2>
+          <div className="flex items-center space-x-2">
+            <h2 className="text-sm font-semibold text-black dark:text-white">Recursos do TheProg Editor</h2>
+            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#007acc]/10 dark:bg-[#3794ff]/15 text-[#007acc] dark:text-[#3794ff] border border-[#007acc]/25 dark:border-[#3794ff]/25 font-normal">
+              v{APP_VERSION}
+            </span>
+          </div>
           <button
             onClick={onClose}
             className="p-1 rounded hover:bg-[#ececec] dark:hover:bg-[#333333] text-[#777777] hover:text-black dark:hover:text-white cursor-pointer"
@@ -59,10 +65,10 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] rounded border border-[#e5e5e5] dark:border-[#333333] space-y-1.5">
             <div className="flex items-center space-x-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
               <FolderTree className="w-4 h-4" />
-              <span>2. Gerenciador de Arquivos & Múltiplas Linguagens</span>
+              <span>2. Gerenciador de Arquivos & Foco em C e C++</span>
             </div>
             <p className="text-[#666666] dark:text-[#aaaaaa] leading-relaxed">
-              O editor é compatível com qualquer extensão de arquivo (C, C++, Python, JavaScript, TypeScript, Shell, HTML, CSS, JSON, Markdown, etc.).
+              O editor é especializado na criação, compilação e depuração de código em <strong>C</strong> (.c), <strong>C++</strong> (.cpp, .cc) e arquivos de cabeçalho (.h, .hpp).
               Você pode criar novos arquivos ou pastas, renomeá-los ou excluí-los diretamente pelo explorador.
               A barra lateral pode ser <strong>redimensionada</strong> arrastando sua borda direita ou <strong>escondida</strong> no botão de colapsar.
             </p>

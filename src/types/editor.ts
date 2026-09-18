@@ -2,19 +2,6 @@ export type SupportedLanguage =
   | 'c'
   | 'cpp'
   | 'h'
-  | 'javascript'
-  | 'typescript'
-  | 'python'
-  | 'html'
-  | 'css'
-  | 'json'
-  | 'markdown'
-  | 'shell'
-  | 'rust'
-  | 'go'
-  | 'java'
-  | 'sql'
-  | 'makefile'
   | 'plaintext';
 
 export interface FileItem {

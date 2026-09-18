@@ -3,6 +3,7 @@ import { Play, Square, Sparkles, Sun, Moon, Wifi, WifiOff, Terminal } from 'luci
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { APP_VERSION } from '../../config/version';
 
 interface TitleBarProps {
   onOpenSettings?: () => void;
@@ -20,6 +21,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
     increaseFontSize,
     decreaseFontSize,
     resetFontSize,
+    compilerProgress,
+    preloadCompiler,
   } = useEditor();
   const { theme, toggleTheme } = useTheme();
   const isOnline = useNetworkStatus();
@@ -31,6 +34,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
         <div className="flex items-center space-x-1.5 font-semibold text-[#007acc] dark:text-[#3794ff]">
           <Terminal className="w-4 h-4" />
           <span className="tracking-wide font-bold">TheProg Editor</span>
+          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#007acc]/10 dark:bg-[#3794ff]/15 text-[#007acc] dark:text-[#3794ff] border border-[#007acc]/25 dark:border-[#3794ff]/25 font-normal ml-1 select-none">
+            v{APP_VERSION}
+          </span>
         </div>
       </div>
 
@@ -48,7 +54,11 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
         ) : (
           <button
             onClick={() => runActiveFile()}
-            title="Salvar e Executar Código (F5)"
+            title={
+              compilerProgress.status === 'preloading'
+                ? `Pré-carregando Clang (${compilerProgress.percent}%)... Clique para executar assim que pronto (F5)`
+                : 'Salvar e Executar Código (F5)'
+            }
             className="flex items-center justify-center w-7 h-7 rounded font-medium text-white shadow-xs transition-all bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer"
           >
             <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
@@ -92,6 +102,38 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
             A+
           </button>
         </div>
+
+        {/* Badge do Compilador Clang WebAssembly (C/C++) */}
+        {compilerProgress.status === 'preloading' && (
+          <div
+            title={`Pré-carregando módulos do compilador Clang WebAssembly (${compilerProgress.percent}% concluído)...`}
+            className="hidden sm:flex items-center space-x-1.5 px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800/60 text-[11px] text-blue-700 dark:text-blue-300 select-none animate-pulse"
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+            <span className="font-mono font-medium">Clang {compilerProgress.percent}%</span>
+          </div>
+        )}
+
+        {compilerProgress.status === 'ready' && (
+          <div
+            title="Compilador Clang C/C++ (WebAssembly + WASI) pré-carregado e pronto para execução instantânea."
+            className="hidden lg:flex items-center space-x-1.5 px-2 py-0.5 rounded bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800/40 text-[11px] text-emerald-700 dark:text-emerald-400 select-none"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span>Clang Pronto</span>
+          </div>
+        )}
+
+        {compilerProgress.status === 'error' && (
+          <button
+            onClick={() => preloadCompiler()}
+            title={`Erro ao pré-carregar Clang: ${compilerProgress.error || 'Falha de rede'}. Clique para tentar novamente.`}
+            className="hidden sm:flex items-center space-x-1.5 px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-[11px] text-rose-700 dark:text-rose-300 cursor-pointer"
+          >
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <span>Reconectar Clang</span>
+          </button>
+        )}
 
         {/* Badge da Máquina Virtual */}
         <button

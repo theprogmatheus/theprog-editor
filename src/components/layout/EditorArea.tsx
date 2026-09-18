@@ -12,18 +12,6 @@ const getMonacoLanguage = (lang: string): string => {
     case 'c': return 'c';
     case 'cpp':
     case 'h': return 'cpp';
-    case 'javascript': return 'javascript';
-    case 'typescript': return 'typescript';
-    case 'python': return 'python';
-    case 'html': return 'html';
-    case 'css': return 'css';
-    case 'json': return 'json';
-    case 'shell': return 'shell';
-    case 'rust': return 'rust';
-    case 'go': return 'go';
-    case 'java': return 'java';
-    case 'sql': return 'sql';
-    case 'markdown': return 'markdown';
     default: return 'plaintext';
   }
 };
@@ -80,7 +68,7 @@ export const EditorArea: React.FC = () => {
     const filename = await showPrompt({
       title: 'Criar Novo Arquivo',
       message: 'Digite o nome do novo arquivo com a extensão:',
-      placeholder: 'ex: main.c, script.py, index.html',
+      placeholder: 'ex: main.c, utils.c, helper.h',
       confirmText: 'Criar',
       cancelText: 'Cancelar',
     });

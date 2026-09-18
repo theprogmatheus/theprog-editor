@@ -3,6 +3,12 @@ import type { FileItem, EditorTab, VMStatus, SupportedLanguage } from '../types/
 import { loadAllFiles, saveFileToStorage, deleteFileFromStorage } from '../services/storage';
 import { vmManager } from '../services/vmManager';
 import { formatCode } from '../utils/formatter';
+import {
+  preloadCompiler,
+  subscribeCompilerProgress,
+  getCompilerProgress,
+  type CompilerProgress,
+} from '../services/cCompiler';
 
 interface EditorContextType {
   files: FileItem[];
@@ -11,6 +17,8 @@ interface EditorContextType {
   tabs: EditorTab[];
   vmStatus: VMStatus;
   vmStatusMessage: string;
+  compilerProgress: CompilerProgress;
+  preloadCompiler: () => Promise<void>;
   isTerminalMinimized: boolean;
   setIsTerminalMinimized: (min: boolean) => void;
   isLinuxLoading: boolean;
@@ -46,6 +54,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [vmStatus, setVmStatus] = useState<VMStatus>('idle');
   const [vmStatusMessage, setVmStatusMessage] = useState<string>('Inicializando Linux...');
+  const [compilerProgress, setCompilerProgress] = useState<CompilerProgress>(getCompilerProgress());
   const [isTerminalMinimized, setIsTerminalMinimized] = useState<boolean>(false);
   const [isLinuxLoading, setIsLinuxLoading] = useState<boolean>(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -100,25 +109,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsSidebarOpen((prev) => !prev);
   };
 
-  // Detecção permissiva e genérica de múltiplas linguagens
+  // Detecção focada em C e C++
   const detectLanguage = (filename: string): SupportedLanguage => {
     const lower = filename.toLowerCase();
     if (lower.endsWith('.c')) return 'c';
     if (lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx')) return 'cpp';
     if (lower.endsWith('.h') || lower.endsWith('.hpp')) return 'h';
-    if (lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) return 'javascript';
-    if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.jsx')) return 'typescript';
-    if (lower.endsWith('.py') || lower.endsWith('.pyw')) return 'python';
-    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html';
-    if (lower.endsWith('.css') || lower.endsWith('.scss') || lower.endsWith('.less')) return 'css';
-    if (lower.endsWith('.json')) return 'json';
-    if (lower.endsWith('.sh') || lower.endsWith('.bash') || lower.endsWith('.zsh')) return 'shell';
-    if (lower.endsWith('.rs')) return 'rust';
-    if (lower.endsWith('.go')) return 'go';
-    if (lower.endsWith('.java')) return 'java';
-    if (lower.endsWith('.sql')) return 'sql';
-    if (lower === 'makefile' || lower.endsWith('.mk')) return 'makefile';
-    if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'markdown';
     return 'plaintext';
   };
 
@@ -160,8 +156,18 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
+    // Pré-carrega o compilador Clang WebAssembly em background
+    const unsubscribeCompiler = subscribeCompilerProgress((prog) => {
+      setCompilerProgress(prog);
+    });
+
+    preloadCompiler().catch((err) => {
+      console.warn('Pré-carregamento em background falhou ou foi adiado:', err);
+    });
+
     return () => {
       unsubscribeStatus();
+      unsubscribeCompiler();
     };
   }, []);
 
@@ -492,6 +498,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         tabs,
         vmStatus,
         vmStatusMessage,
+        compilerProgress,
+        preloadCompiler,
         isTerminalMinimized,
         setIsTerminalMinimized,
         isLinuxLoading,

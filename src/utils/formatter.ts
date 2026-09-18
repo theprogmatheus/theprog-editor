@@ -9,23 +9,14 @@ let initPromise: Promise<void> | null = null;
 export async function formatCode(code: string, filename: string = 'main.c'): Promise<string> {
   const lower = filename.toLowerCase();
 
-  // Formatos nativamente suportados com precisão industrial pelo Clang-Format
+  // Formatos nativamente suportados pelo Clang-Format (C e C++)
   const isSupportedByClang =
     lower.endsWith('.c') ||
     lower.endsWith('.cpp') ||
     lower.endsWith('.cc') ||
     lower.endsWith('.cxx') ||
     lower.endsWith('.h') ||
-    lower.endsWith('.hpp') ||
-    lower.endsWith('.js') ||
-    lower.endsWith('.mjs') ||
-    lower.endsWith('.cjs') ||
-    lower.endsWith('.ts') ||
-    lower.endsWith('.tsx') ||
-    lower.endsWith('.jsx') ||
-    lower.endsWith('.json') ||
-    lower.endsWith('.java') ||
-    lower.endsWith('.cs');
+    lower.endsWith('.hpp');
 
   if (isSupportedByClang) {
     try {
@@ -45,7 +36,7 @@ export async function formatCode(code: string, filename: string = 'main.c'): Pro
     }
   }
 
-  // Fallback para linguagens sem gramática no clang-format (python, shell, html, etc.)
+  // Fallback para arquivos de texto genéricos
   return autoIndentCode(code, 4);
 }
 

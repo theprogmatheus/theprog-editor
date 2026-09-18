@@ -16,12 +16,137 @@ static void __theprog_init_stdio(void) {
 #endif
 `;
 
+export type CompilerStatus = 'unloaded' | 'preloading' | 'ready' | 'error';
+
+export interface CompilerProgress {
+  status: CompilerStatus;
+  percent: number;
+  doneBytes: number;
+  totalBytes: number;
+  error?: string;
+}
+
+let currentProgress: CompilerProgress = {
+  status: 'unloaded',
+  percent: 0,
+  doneBytes: 0,
+  totalBytes: 0,
+};
+
+type ProgressListener = (progress: CompilerProgress) => void;
+const progressListeners = new Set<ProgressListener>();
+
+function notifyProgress() {
+  progressListeners.forEach((listener) => {
+    try {
+      listener(currentProgress);
+    } catch (e) {
+      console.warn('Erro no listener de progresso do compilador:', e);
+    }
+  });
+}
+
+export function subscribeCompilerProgress(listener: ProgressListener): () => void {
+  progressListeners.add(listener);
+  listener(currentProgress);
+  return () => progressListeners.delete(listener);
+}
+
+export function getCompilerProgress(): CompilerProgress {
+  return currentProgress;
+}
+
+let preloadPromise: Promise<void> | null = null;
+
+/**
+ * Pré-carrega o LLVM Clang WebAssembly e a biblioteca padrão C/C++ em segundo plano.
+ * Ao ser chamado no boot da aplicação, o usuário encontra o compilador 100% pronto
+ * na memória para compilar qualquer código instantaneamente no clique de "Executar".
+ */
+export function preloadCompiler(): Promise<void> {
+  if (currentProgress.status === 'ready') {
+    return Promise.resolve();
+  }
+
+  if (preloadPromise) {
+    return preloadPromise;
+  }
+
+  currentProgress = {
+    ...currentProgress,
+    status: 'preloading',
+  };
+  notifyProgress();
+
+  preloadPromise = (async () => {
+    try {
+      // Chamar clang com args = undefined aciona o pré-carregamento de recursos do runtime sem compilar arquivo
+      await commands.clang(undefined, {}, {
+        fetchProgress: ({ doneLength, totalLength }: { doneLength: number; totalLength: number }) => {
+          const percent = totalLength > 0 ? Math.min(100, Math.round((doneLength / totalLength) * 100)) : 0;
+          currentProgress = {
+            status: percent >= 100 ? 'ready' : 'preloading',
+            percent,
+            doneBytes: doneLength,
+            totalBytes: totalLength,
+          };
+          notifyProgress();
+        },
+      });
+
+      currentProgress = {
+        status: 'ready',
+        percent: 100,
+        doneBytes: currentProgress.totalBytes || 105241285,
+        totalBytes: currentProgress.totalBytes || 105241285,
+      };
+      notifyProgress();
+    } catch (err: any) {
+      console.warn('Falha no pré-carregamento do Clang:', err);
+      currentProgress = {
+        ...currentProgress,
+        status: 'error',
+        error: err?.message || String(err),
+      };
+      notifyProgress();
+      preloadPromise = null;
+      throw err;
+    }
+  })();
+
+  return preloadPromise;
+}
+
 export async function compileC(
   sources: string[],
   allFiles: Map<string, string>,
   outputBinaryName: string = 'main',
   onOutput: (text: string) => void
 ): Promise<Uint8Array | null> {
+  // Se ainda estiver pré-carregando quando o usuário clicou em Executar, exibe feedback visual amigável
+  if (currentProgress.status !== 'ready') {
+    onOutput('\x1b[36m[TheProg] Inicializando compilador C/C++ WebAssembly...\x1b[0m\r\n');
+    let lastReported = -1;
+    const unsubscribe = subscribeCompilerProgress((prog) => {
+      if (prog.status === 'preloading' && prog.percent !== lastReported) {
+        lastReported = prog.percent;
+        const mbDone = (prog.doneBytes / (1024 * 1024)).toFixed(1);
+        const mbTotal = (prog.totalBytes / (1024 * 1024)).toFixed(1);
+        onOutput(`\r\x1b[K\x1b[33mCarregando recursos do Clang: ${prog.percent}% (${mbDone} MB / ${mbTotal} MB)...\x1b[0m`);
+      }
+    });
+
+    try {
+      await preloadCompiler();
+      onOutput('\r\x1b[K\x1b[32mCompilador pronto!\x1b[0m\r\n');
+    } catch (preloadErr: any) {
+      onOutput(`\r\x1b[K\x1b[31mErro ao inicializar compilador: ${preloadErr?.message || preloadErr}\x1b[0m\r\n`);
+      return null;
+    } finally {
+      unsubscribe();
+    }
+  }
+
   const vfs: Record<string, string> = {
     '__theprog_runtime.h': THEPROG_RUNTIME_HEADER,
   };
@@ -47,12 +172,22 @@ export async function compileC(
         onOutput(text.replace(/\r?\n/g, '\r\n'));
       }
     },
+    // Suprime o console.log bruto do YoWASP no console
+    fetchProgress: () => {},
   };
 
   try {
     const wasmOutName = outputBinaryName.endsWith('.wasm') ? outputBinaryName : `${outputBinaryName}.wasm`;
     const args = ['-include', '__theprog_runtime.h', ...sources, '-o', wasmOutName];
-    const resultFiles = await commands.clang(args, vfs, options);
+
+    // Detecta se algum dos arquivos de entrada é C++ para vincular a libstdc++ corretamente
+    const isCpp = sources.some((s) => {
+      const lower = s.toLowerCase();
+      return lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx');
+    });
+
+    const compileCommand = isCpp ? commands['clang++'] : commands.clang;
+    const resultFiles = await compileCommand(args, vfs, options);
     const wasmBinary = resultFiles ? (resultFiles[wasmOutName] as Uint8Array | undefined) : undefined;
 
     if (!wasmBinary) {
@@ -70,6 +205,7 @@ export async function compileC(
     return null;
   }
 }
+
 
 export interface ExecutionCallbacks {
   onOutput: (text: string) => void;
@@ -186,7 +322,7 @@ async function runOnMainThread(
     ];
 
     const wasi = new WASI([`./${binaryName}`], [], fds);
-    const wasmModule = await WebAssembly.compile(wasmBinary.buffer as ArrayBuffer);
+    const wasmModule = await WebAssembly.compile(wasmBinary as unknown as BufferSource);
     const instance = await WebAssembly.instantiate(wasmModule, {
       wasi_snapshot_preview1: wasi.wasiImport,
     });

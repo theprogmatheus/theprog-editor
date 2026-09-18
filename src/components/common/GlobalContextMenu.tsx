@@ -75,7 +75,7 @@ export const GlobalContextMenu: React.FC<GlobalContextMenuProps> = ({
     const filename = await showPrompt({
       title: 'Criar Novo Arquivo',
       message: 'Digite o nome do novo arquivo com a extensão:',
-      placeholder: 'ex: main.c, script.py, script.js',
+      placeholder: 'ex: main.c, utils.c, helper.h',
       confirmText: 'Criar',
       cancelText: 'Cancelar',
     });

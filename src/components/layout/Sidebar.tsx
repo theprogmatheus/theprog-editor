@@ -7,7 +7,6 @@ import {
   ChevronDown,
   ChevronRight,
   FileCode,
-  FileText,
   Trash2,
   Edit2,
   Folder,
@@ -241,58 +240,6 @@ export const Sidebar: React.FC = () => {
         </span>
       );
     }
-    if (lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) {
-      return (
-        <span className="w-4 h-4 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-amber-500/40">
-          JS
-        </span>
-      );
-    }
-    if (lower.endsWith('.ts') || lower.endsWith('.tsx') || lower.endsWith('.jsx')) {
-      return (
-        <span className="w-4 h-4 rounded bg-sky-500/20 text-sky-600 dark:text-sky-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-sky-500/40">
-          TS
-        </span>
-      );
-    }
-    if (lower.endsWith('.py')) {
-      return (
-        <span className="w-4 h-4 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-emerald-500/40">
-          PY
-        </span>
-      );
-    }
-    if (lower.endsWith('.html') || lower.endsWith('.htm')) {
-      return (
-        <span className="w-4 h-4 rounded bg-orange-500/20 text-orange-600 dark:text-orange-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-orange-500/40">
-          &lt;&gt;
-        </span>
-      );
-    }
-    if (lower.endsWith('.css') || lower.endsWith('.scss')) {
-      return (
-        <span className="w-4 h-4 rounded bg-blue-500/20 text-blue-600 dark:text-blue-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-blue-500/40">
-          #
-        </span>
-      );
-    }
-    if (lower.endsWith('.json')) {
-      return (
-        <span className="w-4 h-4 rounded bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 text-[9px] font-bold flex items-center justify-center shrink-0 border border-yellow-500/40">
-          &#123;&#125;
-        </span>
-      );
-    }
-    if (lower.endsWith('.sh') || lower.endsWith('.bash')) {
-      return (
-        <span className="w-4 h-4 rounded bg-slate-500/20 text-slate-600 dark:text-slate-300 text-[9px] font-bold flex items-center justify-center shrink-0 border border-slate-500/40">
-          $
-        </span>
-      );
-    }
-    if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
-      return <FileText className="w-4 h-4 text-sky-500 dark:text-sky-400 shrink-0" />;
-    }
     return <FileCode className="w-4 h-4 text-slate-500 dark:text-slate-400 shrink-0" />;
   };
 
@@ -310,7 +257,7 @@ export const Sidebar: React.FC = () => {
         <input
           type="text"
           value={newItemName}
-          placeholder={creatingState?.isFolder ? 'nome da pasta...' : 'nome_do_arquivo.ext'}
+          placeholder={creatingState?.isFolder ? 'nome da pasta...' : 'ex: main.c, utils.h'}
           onChange={(e) => setNewItemName(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') handleConfirmCreate();
