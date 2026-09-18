@@ -5,8 +5,35 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#1e1e1e" />
-    <meta name="description" content="TheProg Editor - IDE PWA 100% Offline" />
+    <meta name="description" content="TheProg Editor - IDE PWA 100% Offline com compilação e execução nativa em C e C++" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TheProg Editor" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="./pwa-192x192.png" />
     <title>TheProg Editor</title>
+    <!-- Redirecionamento Canônico para Domínio Oficial de Produção -->
+    <script>
+      (function () {
+        try {
+          var host = window.location.hostname.toLowerCase();
+          var allowed =
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host === '[::1]' ||
+            host === 'matheus.eti.br' ||
+            host.endsWith('.matheus.eti.br');
+          if (!allowed) {
+            var search = window.location.search || '';
+            var hash = window.location.hash || '';
+            window.location.replace('https://matheus.eti.br/theprog-editor/' + search + hash);
+          }
+        } catch (e) {
+          console.error('Redirection check error:', e);
+        }
+      })();
+    </script>
   </head>
   <body class="font-sans antialiased select-none overflow-hidden h-screen w-screen m-0 p-0">
     <div id="root" class="h-full w-full"></div>

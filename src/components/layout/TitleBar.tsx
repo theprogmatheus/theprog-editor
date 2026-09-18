@@ -1,8 +1,9 @@
 import React from 'react';
-import { Play, Square, Sparkles, Sun, Moon, Wifi, WifiOff, Terminal } from 'lucide-react';
+import { Play, Square, Sparkles, Sun, Moon, Wifi, WifiOff, Terminal, Download } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
+import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { APP_VERSION } from '../../config/version';
 
 interface TitleBarProps {
@@ -27,6 +28,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
   } = useEditor();
   const { theme, toggleTheme } = useTheme();
   const isOnline = useNetworkStatus();
+  const { isInstallable, installApp } = usePwaInstall();
 
   return (
     <header className="h-9 w-full bg-[#f3f3f3] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#252526] flex items-center justify-between px-3 select-none text-xs text-[#333333] dark:text-[#cccccc] transition-colors shrink-0">
@@ -173,6 +175,18 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
             <WifiOff className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
           )}
         </div>
+
+        {/* Botão Instalar PWA */}
+        {isInstallable && (
+          <button
+            onClick={() => installApp()}
+            title="Instalar TheProg Editor como aplicativo no seu computador ou celular"
+            className="flex items-center space-x-1.5 px-2.5 py-1 rounded font-medium text-xs bg-[#007acc] hover:bg-[#0062a3] dark:bg-[#007acc] dark:hover:bg-[#008be6] text-white shadow-xs active:scale-95 cursor-pointer transition-all animate-pulse hover:animate-none"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline font-semibold">Instalar App</span>
+          </button>
+        )}
 
         {/* Alternador de Tema */}
         <button

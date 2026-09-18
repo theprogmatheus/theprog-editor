@@ -2,6 +2,7 @@
 
 > **IDE Web PWA 100% Offline com compilação e execução nativa em C e C++ via WebAssembly.**
 
+[![Produção](https://img.shields.io/badge/Acessar-matheus.eti.br%2Ftheprog--editor-007acc?style=flat&logo=googlechrome&logoColor=white)](https://matheus.eti.br/theprog-editor)
 ![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
 ![PWA](https://img.shields.io/badge/PWA-100%25_Offline-emerald.svg)
 ![Language](https://img.shields.io/badge/Language-C%20%2F%20C%2B%2B-00599c.svg)
@@ -105,18 +106,28 @@ theprog-editor/
 
 ---
 
-## 🌐 Deploy no GitHub Pages
+## 🌐 Acesso em Produção & Infraestrutura
 
-O projeto possui integração contínua (CI/CD) configurada em `.github/workflows/deploy.yml`. A cada push na branch `main`, o GitHub Actions compila os assets estáticos e publica o site automaticamente:
+O **TheProg Editor** é hospedado via GitHub Pages e servido com proxy, SSL e aceleração de borda através da **Cloudflare** no endereço oficial de produção:
 
-1. No repositório GitHub, navegue até **Settings > Pages**.
-2. Em **Build and deployment > Source**, selecione **GitHub Actions**.
-3. O endereço publicado padrão será:
-   ```text
-   https://theprogmatheus.github.io/theprog-editor/
-   ```
+👉 **[https://matheus.eti.br/theprog-editor](https://matheus.eti.br/theprog-editor)**
 
-> **Nota sobre hospedagem estática gratuita:** O GitHub Pages não permite configurar cabeçalhos HTTP customizados (`COOP`/`COEP`). Caso os cabeçalhos não estejam presentes no navegador do usuário, o editor conta com um fallback automático que garante a compilação e execução de programas C/C++ sem requisições adicionais.
+### ⚡ Isolamento Cross-Origin e Stdin Interativo
+Através do Cloudflare, todas as respostas HTTP recebem os cabeçalhos de isolamento de segurança:
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp`
+- `Cross-Origin-Resource-Policy: cross-origin`
+
+Esses cabeçalhos ativam o uso irrestrito de `SharedArrayBuffer` e `Atomics.wait` no navegador, permitindo a compilação C/C++ e execução de chamadas bloqueantes de `stdin` (como `scanf()`, `cin`, `getchar()` e `fgets()`) diretamente no terminal em tempo real sem qualquer perda de performance.
+
+### 🔄 Redirecionamento Canônico
+Qualquer acesso originado de servidores ou mirrors não oficiais (como o domínio padrão do GitHub Pages `theprogmatheus.github.io`) é automaticamente redirecionado de forma imediata para o domínio de produção oficial **`https://matheus.eti.br/theprog-editor`**.
+
+### 📱 Instalação como Aplicativo (PWA)
+O TheProg Editor cumpre todos os requisitos do padrão Progressive Web App:
+- **Desktop & Mobile:** Pode ser instalado no Google Chrome, Microsoft Edge, Safari e navegadores Android clicando no botão **"Instalar App"** na barra superior ou no ícone da barra de navegação.
+- **Janela Própria:** Executa em modo *standalone*, integrado à barra de tarefas do sistema operacional e desprovido de barras de navegação do browser.
+- **100% Offline:** Após a primeira visita, todos os assets, binários WebAssembly do compilador Clang, bibliotecas padrão C/C++ e o editor Monaco funcionam de forma autônoma sem requisições à internet.
 
 ---
 

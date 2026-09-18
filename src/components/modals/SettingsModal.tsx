@@ -1,6 +1,7 @@
-import { X, Moon, Sun, RotateCcw, Monitor } from 'lucide-react';
+import { X, Moon, Sun, RotateCcw, Monitor, Download, CheckCircle2, Laptop } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
+import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { defaultFiles, saveFileToStorage } from '../../services/storage';
 import { APP_VERSION } from '../../config/version';
 
@@ -12,6 +13,7 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const { theme, setTheme } = useTheme();
   const { showConfirm } = useDialog();
+  const { isInstallable, isInstalled, installApp } = usePwaInstall();
 
   if (!isOpen) return null;
 
@@ -82,8 +84,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             </div>
           </div>
 
-          {/* Persistência */}
-          <div className="p-3 rounded bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] space-y-1.5">
+          {/* Persistência & Modo Offline */}
+          <div className="p-3 rounded bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] space-y-2">
             <div className="flex items-center space-x-2 font-medium text-black dark:text-white">
               <Monitor className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>Armazenamento Offline</span>
@@ -92,6 +94,42 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
               Todos os seus arquivos, edições e estado de execução são salvos no banco de dados local (IndexedDB)
               do seu navegador.
             </p>
+          </div>
+
+          {/* Aplicativo PWA */}
+          <div className="p-3 rounded bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 font-medium text-black dark:text-white">
+                <Laptop className="w-4 h-4 text-[#007acc] dark:text-[#3794ff]" />
+                <span>Aplicativo (PWA)</span>
+              </div>
+              {isInstalled ? (
+                <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  <CheckCircle2 className="w-3 h-3" />
+                  <span>Instalado</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  Navegador Web
+                </span>
+              )}
+            </div>
+
+            <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+              {isInstalled
+                ? 'O TheProg Editor está operando no modo aplicativo independente (standalone), sem barras do navegador.'
+                : 'Instale o TheProg Editor no seu sistema operacional para abrir em janela própria, fixar na barra de tarefas e usar 100% offline.'}
+            </p>
+
+            {isInstallable && (
+              <button
+                onClick={installApp}
+                className="w-full mt-1 flex items-center justify-center space-x-2 py-2 px-3 rounded bg-[#007acc] hover:bg-[#0062a3] text-white font-medium cursor-pointer transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                <span>Instalar Aplicativo Agora</span>
+              </button>
+            )}
           </div>
 
           {/* Restaurar template */}
