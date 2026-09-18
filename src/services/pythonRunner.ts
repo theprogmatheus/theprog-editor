@@ -26,8 +26,8 @@ async function ensureBrython(): Promise<void> {
   if (brythonLoadingPromise) return brythonLoadingPromise;
 
   brythonLoadingPromise = (async () => {
-    await loadScript('/brython/brython.js');
-    await loadScript('/brython/brython_stdlib.js');
+    await loadScript(`${import.meta.env.BASE_URL}brython/brython.js`);
+    await loadScript(`${import.meta.env.BASE_URL}brython/brython_stdlib.js`);
     if ((window as any).brython) {
       (window as any).brython();
     }

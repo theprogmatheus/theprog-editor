@@ -1,5 +1,17 @@
 # React + TypeScript + Vite
 
+## Deploy no GitHub Pages
+
+O projeto pode ser publicado como site estático no GitHub Pages. O workflow em `.github/workflows/deploy.yml` faz o build e o deploy automaticamente a cada push na branch `main`.
+
+1. Faça push deste projeto para `https://github.com/theprogmatheus/theprog-editor`.
+2. No GitHub, abra **Settings > Pages** e selecione **GitHub Actions** em **Build and deployment > Source**.
+3. Execute o workflow novamente em **Actions > Deploy to GitHub Pages**, se necessário.
+
+O endereço publicado será `https://theprogmatheus.github.io/theprog-editor/`.
+
+O GitHub Pages não permite configurar os headers `COOP`/`COEP`. Por isso, a execução de C usa o fallback existente quando `SharedArrayBuffer` não está disponível; o restante do editor e do emulador continua sendo servido como aplicação estática.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

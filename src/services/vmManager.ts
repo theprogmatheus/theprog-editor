@@ -117,11 +117,11 @@ class VMManager {
       }
 
       const options: any = {
-        wasm_path: '/v86/v86.wasm',
+        wasm_path: `${import.meta.env.BASE_URL}v86/v86.wasm`,
         memory_size: 256 * 1024 * 1024,
         vga_memory_size: 4 * 1024 * 1024,
-        bios: { url: '/v86/bios/seabios.bin' },
-        vga_bios: { url: '/v86/bios/vgabios.bin' },
+        bios: { url: `${import.meta.env.BASE_URL}v86/bios/seabios.bin` },
+        vga_bios: { url: `${import.meta.env.BASE_URL}v86/bios/vgabios.bin` },
         autostart: true,
       };
 

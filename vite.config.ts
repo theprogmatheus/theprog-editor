@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/theprog-editor/',
   plugins: [
     react(),
     tailwindcss(),
@@ -19,10 +20,10 @@ export default defineConfig({
         background_color: '#1e1e1e',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
+        start_url: './',
         icons: [
           {
-            src: '/favicon.svg',
+            src: './favicon.svg',
             sizes: '192x192 512x512',
             type: 'image/svg+xml',
             purpose: 'any maskable',
