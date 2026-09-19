@@ -151,9 +151,9 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           onKeyDown={handleKeyDown}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-100"
         >
-          <div className="w-full max-w-md bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#3e3e42] rounded-lg shadow-2xl text-[#333333] dark:text-[#cccccc] overflow-hidden transition-colors">
+          <div className="w-full max-w-lg max-h-[90vh] bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#3e3e42] rounded-xl shadow-2xl text-[#333333] dark:text-[#cccccc] overflow-hidden flex flex-col transition-colors">
             {/* Topo do Diálogo */}
-            <div className="h-10 px-4 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#333333] bg-[#f8f8f8] dark:bg-[#1f1f1f]">
+            <div className="h-11 px-4 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#333333] bg-[#f8f8f8] dark:bg-[#1f1f1f] shrink-0">
               <div className="flex items-center space-x-2">
                 {dialog.type === 'alert' && (
                   <>
@@ -183,8 +183,8 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               </button>
             </div>
 
-            {/* Corpo */}
-            <div className="p-4 space-y-3 text-xs">
+            {/* Corpo com scroll */}
+            <div className="p-4 space-y-3 text-xs flex-1 overflow-y-auto">
               <p className="text-[#555555] dark:text-[#bbbbbb] leading-relaxed whitespace-pre-wrap">{dialog.message}</p>
 
               {dialog.type === 'prompt' && (
@@ -202,7 +202,7 @@ export const DialogProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             </div>
 
             {/* Ações / Botões */}
-            <div className="h-11 px-4 bg-[#f8f8f8] dark:bg-[#1e1e1e] border-t border-[#e5e5e5] dark:border-[#333333] flex items-center justify-end space-x-2">
+            <div className="h-12 px-4 bg-[#f8f8f8] dark:bg-[#1e1e1e] border-t border-[#e5e5e5] dark:border-[#333333] flex items-center justify-end space-x-2 shrink-0">
               {dialog.type === 'alert' && (
                 <button
                   onClick={() => dialog.resolve()}

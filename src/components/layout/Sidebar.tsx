@@ -12,6 +12,7 @@ import {
   Check,
   X,
   ChevronLeft,
+  RefreshCw,
 } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useDialog } from '../../context/DialogContext';
@@ -43,7 +44,12 @@ export const Sidebar: React.FC = () => {
     toggleSidebar,
     sidebarWidth,
     setSidebarWidth,
+    activeWorkspace,
+    openWorkspacePicker,
+    refreshCurrentWorkspace,
   } = useEditor();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
 
@@ -73,9 +79,8 @@ export const Sidebar: React.FC = () => {
   const [isSectionOpen, setIsSectionOpen] = useState(true);
   const [isResizing, setIsResizing] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
-    return new Set(files.filter((f) => f.isFolder).map((f) => f.id));
-  });
+  // Diretórios iniciam minimizados por padrão para evitar flood de arquivos
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
 
   const sidebarRef = useRef<HTMLElement>(null);
 
@@ -97,19 +102,6 @@ export const Sidebar: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [contextMenu]);
-
-  // Auto-expande novas pastas se adicionadas
-  useEffect(() => {
-    setExpandedFolders((prev) => {
-      const next = new Set(prev);
-      files.forEach((f) => {
-        if (f.isFolder && !next.has(f.id)) {
-          next.add(f.id);
-        }
-      });
-      return next;
-    });
-  }, [files]);
 
   // Manipulador de redimensionamento da sidebar via drag na borda direita
   useEffect(() => {
@@ -533,8 +525,8 @@ export const Sidebar: React.FC = () => {
       >
         {/* Topo do Explorador com botões globais e de colapsar */}
         <div className="h-9 px-3 flex items-center justify-between font-semibold tracking-wider text-[11px] text-[#616161] dark:text-[#888888] border-b border-[#e5e5e5] dark:border-[#202020]">
-          <span>EXPLORADOR</span>
-          <div className="flex items-center space-x-1">
+          <span className="truncate mr-1">EXPLORADOR</span>
+          <div className="flex items-center space-x-1 shrink-0">
             <button
               onClick={() => handleStartCreate(false, null)}
               title="Novo Arquivo na raiz"
@@ -548,6 +540,27 @@ export const Sidebar: React.FC = () => {
               className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
             >
               <FolderPlus className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={async () => {
+                setIsRefreshing(true);
+                try {
+                  await refreshCurrentWorkspace();
+                } finally {
+                  setTimeout(() => setIsRefreshing(false), 500);
+                }
+              }}
+              title="Recarregar Workspace / Disco"
+              className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#007acc]' : ''}`} />
+            </button>
+            <button
+              onClick={openWorkspacePicker}
+              title="Trocar Pasta / Espaço de Trabalho"
+              className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
+            >
+              <FolderOpen className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={toggleSidebar}
@@ -582,17 +595,51 @@ export const Sidebar: React.FC = () => {
           isDragOverRoot && !dragOverFolderId ? 'bg-[#007acc]/10 ring-1 ring-[#007acc]' : ''
         }`}
       >
-        <div
-          onClick={() => setIsSectionOpen(!isSectionOpen)}
-          className="flex items-center space-x-1 px-2 py-1 cursor-pointer font-bold text-[11px] text-[#333333] dark:text-[#aaaaaa] hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e]"
-        >
-          {isSectionOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
-          <span className="uppercase tracking-wider">WORKSPACE</span>
+        <div className="flex items-center justify-between px-2 py-1 text-[11px] font-bold text-[#333333] dark:text-[#aaaaaa] hover:bg-[#e8e8e8] dark:hover:bg-[#2a2d2e] group">
+          <div
+            onClick={() => setIsSectionOpen(!isSectionOpen)}
+            className="flex items-center space-x-1.5 cursor-pointer truncate flex-1 min-w-0"
+          >
+            {isSectionOpen ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+            <span className="uppercase tracking-wider truncate" title={`Espaço de Trabalho: ${activeWorkspace.name}`}>
+              {activeWorkspace.name}
+            </span>
+            <span
+              className={`text-[9px] px-1 py-0.2 rounded font-mono shrink-0 ${
+                activeWorkspace.type === 'local'
+                  ? 'bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-300 dark:border-blue-800'
+                  : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
+              }`}
+            >
+              {activeWorkspace.type === 'local' ? 'LOCAL' : 'SANDBOX'}
+            </span>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              openWorkspacePicker();
+            }}
+            title="Trocar Pasta / Espaço de Trabalho"
+            className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white transition-opacity shrink-0"
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         {isSectionOpen && (
           <div className="py-1 min-h-[50px]">
             {renderTree(null, 0)}
+            {files.length === 0 && !creatingState && (
+              <div className="p-4 text-center text-xs text-[#888888] space-y-2">
+                <p>Esta pasta está vazia.</p>
+                <button
+                  onClick={() => handleStartCreate(false, null)}
+                  className="px-2.5 py-1 rounded bg-[#007acc] text-white text-[11px] font-medium hover:bg-[#0062a3] cursor-pointer"
+                >
+                  Criar Arquivo
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -677,6 +724,31 @@ export const Sidebar: React.FC = () => {
               </button>
             </>
           )}
+
+          <div className="my-1 border-t border-[#e5e5e5] dark:border-[#383838]" />
+
+          {/* Opções de Workspace */}
+          <button
+            onClick={() => {
+              setContextMenu(null);
+              refreshCurrentWorkspace();
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-[#616161] dark:text-[#aaaaaa]" />
+            <span>Recarregar Workspace</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setContextMenu(null);
+              openWorkspacePicker();
+            }}
+            className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-[#616161] dark:text-[#aaaaaa]" />
+            <span>Trocar Espaço de Trabalho...</span>
+          </button>
 
           <div className="my-1 border-t border-[#e5e5e5] dark:border-[#383838]" />
 

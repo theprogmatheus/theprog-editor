@@ -8,17 +8,15 @@ import { Sidebar } from './components/layout/Sidebar';
 import { EditorArea } from './components/layout/EditorArea';
 import { TerminalPanel } from './components/layout/TerminalPanel';
 import { SettingsModal } from './components/modals/SettingsModal';
-import { InitVMModal } from './components/modals/InitVMModal';
 import { HelpModal } from './components/modals/HelpModal';
+import { WelcomeScreen } from './components/screens/WelcomeScreen';
 import { LinuxLoadingScreen } from './components/common/LinuxLoadingScreen';
 import { GlobalContextMenu } from './components/common/GlobalContextMenu';
 
 const MainLayout: React.FC = () => {
   const [activeActivityTab, setActiveActivityTab] = useState<ActivityTab>('explorer');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isVMModalOpen, setIsVMModalOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const { isSystemReady, systemProgressPercent, systemStatusMessage, systemStatus } = useEditor();
 
   useEffect(() => {
     document.title = 'TheProg Editor';
@@ -37,10 +35,7 @@ const MainLayout: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden font-sans select-none bg-white dark:bg-[#1e1e1e] text-[#333333] dark:text-[#cccccc] transition-colors">
       {/* Topo: TitleBar */}
-      <TitleBar
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenVMModal={() => setIsVMModalOpen(true)}
-      />
+      <TitleBar onOpenSettings={() => setIsSettingsOpen(true)} />
 
       {/* Centro: ActivityBar + Sidebar + Editor/Terminal */}
       <div className="flex-1 flex overflow-hidden">
@@ -60,24 +55,62 @@ const MainLayout: React.FC = () => {
 
       {/* Modais */}
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      <InitVMModal isOpen={isVMModalOpen} onClose={() => setIsVMModalOpen(false)} />
       <HelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
 
-      {/* Menu de Contexto Global (Substitui menu nativo do browser) */}
+      {/* Menu de Contexto Global */}
       <GlobalContextMenu
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenHelp={() => setIsHelpOpen(true)}
       />
+    </div>
+  );
+};
 
-      {/* Loading bloqueante até o sistema estar 100% carregado */}
+const MainApp: React.FC = () => {
+  const {
+    isSystemReady,
+    systemProgressPercent,
+    systemStatusMessage,
+    systemStatus,
+    currentScreen,
+    recentWorkspaces,
+    openLocalFolder,
+    selectRecentWorkspace,
+    removeRecentWorkspaceItem,
+    openSandboxWorkspace,
+    returnToEditor,
+    hasEnteredEditorSession,
+  } = useEditor();
+
+  // 1. Carrega ambiente Linux e compilador Clang upfront antes mesmo de escolher o workspace
+  if (!isSystemReady) {
+    return (
       <LinuxLoadingScreen
         isLoading={!isSystemReady}
         progressPercent={systemProgressPercent}
         statusMessage={systemStatusMessage}
         isError={systemStatus === 'error'}
       />
-    </div>
-  );
+    );
+  }
+
+  // 2. Com o sistema pronto, apresenta a seleção limpa de diretório/sandbox
+  if (currentScreen === 'welcome') {
+    return (
+      <WelcomeScreen
+        recentWorkspaces={recentWorkspaces}
+        onOpenLocalFolder={openLocalFolder}
+        onSelectRecent={selectRecentWorkspace}
+        onRemoveRecent={removeRecentWorkspaceItem}
+        onOpenSandbox={openSandboxWorkspace}
+        canReturnToEditor={hasEnteredEditorSession}
+        onReturnToEditor={returnToEditor}
+      />
+    );
+  }
+
+  // 3. Ao escolher a pasta, abre o editor instantaneamente sem nenhum loading adicional
+  return <MainLayout />;
 };
 
 export function App() {
@@ -85,7 +118,7 @@ export function App() {
     <ThemeProvider>
       <DialogProvider>
         <EditorProvider>
-          <MainLayout />
+          <MainApp />
         </EditorProvider>
       </DialogProvider>
     </ThemeProvider>

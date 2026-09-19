@@ -11,10 +11,10 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-      <div className="w-full max-w-xl bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#3e3e42] rounded-lg shadow-2xl text-[#333333] dark:text-[#cccccc] overflow-hidden max-h-[85vh] flex flex-col transition-colors">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 md:p-6">
+      <div className="w-full max-w-2xl bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#3e3e42] rounded-xl shadow-2xl text-[#333333] dark:text-[#cccccc] overflow-hidden max-h-[90vh] flex flex-col transition-colors">
         {/* Cabeçalho */}
-        <div className="h-11 px-4 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#333333] shrink-0">
+        <div className="h-12 px-5 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#333333] shrink-0 bg-[#fafafa] dark:bg-[#202021]">
           <div className="flex items-center space-x-2">
             <h2 className="text-sm font-semibold text-black dark:text-white">Recursos do TheProg Editor</h2>
             <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#007acc]/10 dark:bg-[#3794ff]/15 text-[#007acc] dark:text-[#3794ff] border border-[#007acc]/25 dark:border-[#3794ff]/25 font-normal">
@@ -30,7 +30,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
         </div>
 
         {/* Conteúdo focado 100% no Editor */}
-        <div className="p-5 overflow-y-auto space-y-4 text-xs">
+        <div className="p-5 flex-1 overflow-y-auto space-y-4 text-xs">
           {/* 1. Atalhos */}
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] rounded border border-[#e5e5e5] dark:border-[#333333] space-y-2">
             <div className="flex items-center space-x-1.5 font-semibold text-[#007acc] dark:text-[#3794ff]">
@@ -91,10 +91,10 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] rounded border border-[#e5e5e5] dark:border-[#333333] space-y-1.5">
             <div className="flex items-center space-x-1.5 font-semibold text-sky-600 dark:text-sky-400">
               <WifiOff className="w-4 h-4" />
-              <span>4. Modo 100% Offline (PWA & IndexedDB)</span>
+              <span>4. Resistente a Oscilações e Falta de Internet (PWA & IndexedDB)</span>
             </div>
             <p className="text-[#666666] dark:text-[#aaaaaa] leading-relaxed">
-              Após carregar pela primeira vez, o TheProg Editor funciona sem internet. Todos os arquivos e códigos criados ficam armazenados de forma persistente no banco de dados local do seu navegador.
+              Após carregar pela primeira vez, o TheProg Editor opera com alta tolerância a instabilidades ou quedas de internet. Todos os arquivos e códigos criados ficam armazenados de forma persistente no seu computador ou no banco de dados local do navegador.
             </p>
           </div>
 

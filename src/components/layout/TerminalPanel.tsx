@@ -135,7 +135,44 @@ export const TerminalPanel: React.FC = () => {
       window.removeEventListener('resize', safeFit);
       unsubscribe();
       term.dispose();
+      xtermInstance.current = null;
+      fitAddonRef.current = null;
     };
+  }, []);
+
+  // Atualiza dinamicamente as cores do terminal ao trocar o tema sem descartar o buffer/histórico
+  useEffect(() => {
+    if (!xtermInstance.current) return;
+    xtermInstance.current.options.theme =
+      theme === 'dark'
+        ? {
+            background: '#1e1e1e', // Cor idêntica ao textarea / Monaco dark
+            foreground: '#cccccc',
+            cursor: '#ffffff',
+            selectionBackground: '#264f78',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#0dbc79',
+            yellow: '#e5e510',
+            blue: '#2472c8',
+            magenta: '#bc3fbc',
+            cyan: '#11a8cd',
+            white: '#e5e5e5',
+          }
+        : {
+            background: '#ffffff', // Cor idêntica ao textarea / Monaco light
+            foreground: '#1e1e1e',
+            cursor: '#1e1e1e',
+            selectionBackground: '#add6ff',
+            black: '#000000',
+            red: '#cd3131',
+            green: '#008000',
+            yellow: '#795e26',
+            blue: '#0000ff',
+            magenta: '#af00db',
+            cyan: '#098658',
+            white: '#ffffff',
+          };
   }, [theme]);
 
   // Sempre que o terminal for restaurado ou maximizado, recalcula dimensões

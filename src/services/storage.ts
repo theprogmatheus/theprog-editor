@@ -1,8 +1,8 @@
 import { openDB, type IDBPDatabase } from 'idb';
-import type { FileItem, UserSettings } from '../types/editor';
+import type { FileItem, UserSettings, RecentWorkspace } from '../types/editor';
 
 const DB_NAME = 'theprog-editor-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -12,6 +12,7 @@ export const defaultSettings: UserSettings = {
   minimap: true,
   theme: 'dark',
   autoSave: true,
+  autoSaveDelay: 1500,
 };
 
 export const defaultFiles: FileItem[] = [
@@ -47,6 +48,9 @@ export async function getDb(): Promise<IDBPDatabase> {
         }
         if (!db.objectStoreNames.contains('vmCache')) {
           db.createObjectStore('vmCache');
+        }
+        if (!db.objectStoreNames.contains('recent_workspaces')) {
+          db.createObjectStore('recent_workspaces', { keyPath: 'id' });
         }
       },
     });
@@ -88,4 +92,82 @@ export async function loadUserSettings(): Promise<UserSettings> {
 export async function saveUserSettings(settings: UserSettings): Promise<void> {
   const db = await getDb();
   await db.put('settings', settings, 'user-preferences');
+}
+
+export async function getRecentWorkspaces(): Promise<RecentWorkspace[]> {
+  try {
+    const db = await getDb();
+    const workspaces: RecentWorkspace[] = await db.getAll('recent_workspaces');
+    
+    // Garante que o Sandbox sempre exista na lista de recentes
+    const hasSandbox = workspaces.some((w) => w.id === 'sandbox');
+    if (!hasSandbox) {
+      const sandboxWs: RecentWorkspace = {
+        id: 'sandbox',
+        name: 'Sandbox Virtual',
+        type: 'sandbox',
+        path: 'Armazenamento interno do navegador',
+        lastOpened: Date.now(),
+      };
+      await db.put('recent_workspaces', sandboxWs);
+      workspaces.unshift(sandboxWs);
+    }
+
+    return workspaces.sort((a, b) => b.lastOpened - a.lastOpened);
+  } catch (err) {
+    console.error('Erro ao ler workspaces recentes:', err);
+    return [
+      {
+        id: 'sandbox',
+        name: 'Sandbox Virtual',
+        type: 'sandbox',
+        path: 'Armazenamento interno do navegador',
+        lastOpened: Date.now(),
+      },
+    ];
+  }
+}
+
+export async function saveRecentWorkspace(workspace: RecentWorkspace): Promise<void> {
+  const payload = {
+    ...workspace,
+    lastOpened: Date.now(),
+  };
+
+  try {
+    const db = await getDb();
+    try {
+      await db.put('recent_workspaces', payload);
+    } catch (putErr) {
+      // Em modo anônimo ou navegadores com restrições de IPC de FileSystemHandle no IDB
+      console.warn('Não foi possível persistir handle no IndexedDB, salvando apenas metadados:', putErr);
+      const safePayload = { ...payload };
+      delete safePayload.handle;
+      await db.put('recent_workspaces', safePayload);
+    }
+  } catch (err) {
+    console.error('Erro ao salvar workspace recente:', err);
+  }
+}
+
+export async function removeRecentWorkspace(id: string): Promise<void> {
+  try {
+    const db = await getDb();
+    await db.delete('recent_workspaces', id);
+  } catch (err) {
+    console.error('Erro ao remover workspace recente:', err);
+  }
+}
+
+export async function updateWorkspaceLastOpened(id: string): Promise<void> {
+  try {
+    const db = await getDb();
+    const existing = await db.get('recent_workspaces', id);
+    if (existing) {
+      existing.lastOpened = Date.now();
+      await db.put('recent_workspaces', existing);
+    }
+  } catch (err) {
+    console.error('Erro ao atualizar data de acesso do workspace:', err);
+  }
 }

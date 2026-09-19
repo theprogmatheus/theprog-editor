@@ -13,6 +13,24 @@ export interface FileItem {
   parentId: string | null;
   language: SupportedLanguage;
   updatedAt: number;
+  handle?: FileSystemHandle;
+}
+
+export type WorkspaceType = 'sandbox' | 'local';
+
+export interface RecentWorkspace {
+  id: string;
+  name: string;
+  type: WorkspaceType;
+  path?: string;
+  handle?: FileSystemDirectoryHandle;
+  lastOpened: number;
+}
+
+export interface ActiveWorkspace {
+  type: WorkspaceType;
+  name: string;
+  handle?: FileSystemDirectoryHandle;
 }
 
 export interface EditorTab {
@@ -39,4 +57,5 @@ export interface UserSettings {
   minimap: boolean;
   theme: ThemeMode;
   autoSave: boolean;
+  autoSaveDelay: number;
 }

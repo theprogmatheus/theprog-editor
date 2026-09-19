@@ -74,7 +74,7 @@ export const LinuxLoadingScreen: React.FC<LinuxLoadingScreenProps> = ({
         )}
 
         <span className="text-[10px] text-[#555555] mt-8 font-mono">
-          Compilação C/C++ Real em WebAssembly • 100% Offline
+          Compilação C/C++ Real em WebAssembly • Resistente a oscilações e falta de internet
         </span>
       </div>
     </div>

@@ -25,6 +25,7 @@ export const EditorArea: React.FC = () => {
     closeTab,
     reorderTabs,
     updateFileContent,
+    saveActiveFile,
     runActiveFile,
     formatActiveFile,
     createNewFile,
@@ -83,6 +84,7 @@ export const EditorArea: React.FC = () => {
   const activeFileRef = useRef(activeFile);
   const runActiveFileRef = useRef(runActiveFile);
   const updateFileContentRef = useRef(updateFileContent);
+  const saveActiveFileRef = useRef(saveActiveFile);
   const formatActiveFileRef = useRef(formatActiveFile);
   const increaseFontSizeRef = useRef(increaseFontSize);
   const decreaseFontSizeRef = useRef(decreaseFontSize);
@@ -92,11 +94,12 @@ export const EditorArea: React.FC = () => {
     activeFileRef.current = activeFile;
     runActiveFileRef.current = runActiveFile;
     updateFileContentRef.current = updateFileContent;
+    saveActiveFileRef.current = saveActiveFile;
     formatActiveFileRef.current = formatActiveFile;
     increaseFontSizeRef.current = increaseFontSize;
     decreaseFontSizeRef.current = decreaseFontSize;
     resetFontSizeRef.current = resetFontSize;
-  }, [activeFile, runActiveFile, updateFileContent, formatActiveFile, increaseFontSize, decreaseFontSize, resetFontSize]);
+  }, [activeFile, runActiveFile, updateFileContent, saveActiveFile, formatActiveFile, increaseFontSize, decreaseFontSize, resetFontSize]);
 
   const handleRun = () => {
     const currentCode = editorRef.current ? editorRef.current.getValue() : undefined;
@@ -160,9 +163,7 @@ export const EditorArea: React.FC = () => {
 
     // Atalho Ctrl+S para salvar
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-      if (activeFileRef.current) {
-        updateFileContentRef.current(activeFileRef.current.id, editor.getValue());
-      }
+      saveActiveFileRef.current();
     });
 
     // Atalhos para redimensionamento de fonte do editor
@@ -190,9 +191,7 @@ export const EditorArea: React.FC = () => {
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
         e.preventDefault();
-        if (activeFileRef.current && editorRef.current) {
-          updateFileContentRef.current(activeFileRef.current.id, editorRef.current.getValue());
-        }
+        saveActiveFileRef.current();
       }
       if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) {
         e.preventDefault();

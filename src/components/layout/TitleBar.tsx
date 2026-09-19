@@ -1,5 +1,5 @@
 import React from 'react';
-import { Play, Square, Sun, Moon, Wifi, WifiOff, Terminal, Download } from 'lucide-react';
+import { Play, Square, Sun, Moon, Wifi, WifiOff, Terminal, Download, FolderOpen, Box } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
@@ -8,22 +8,21 @@ import { APP_VERSION } from '../../config/version';
 
 interface TitleBarProps {
   onOpenSettings?: () => void;
-  onOpenVMModal: () => void;
 }
 
-export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
+export const TitleBar: React.FC<TitleBarProps> = () => {
   const {
     runActiveFile,
     stopExecution,
     vmStatus,
     isSystemReady,
-    systemStatus,
     systemProgressPercent,
-    systemStatusMessage,
     fontSize,
     increaseFontSize,
     decreaseFontSize,
     resetFontSize,
+    activeWorkspace,
+    openWorkspacePicker,
   } = useEditor();
   const { theme, toggleTheme } = useTheme();
   const isOnline = useNetworkStatus();
@@ -31,8 +30,8 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
 
   return (
     <header className="h-9 w-full bg-[#f3f3f3] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#252526] flex items-center justify-between px-3 select-none text-xs text-[#333333] dark:text-[#cccccc] transition-colors shrink-0">
-      {/* Esquerda: Logo e Nome */}
-      <div className="flex items-center space-x-3">
+      {/* Esquerda: Logo, Nome e Workspace Ativo */}
+      <div className="flex items-center space-x-2.5">
         <div className="flex items-center space-x-1.5 font-semibold text-[#007acc] dark:text-[#3794ff]">
           <Terminal className="w-4 h-4" />
           <span className="tracking-wide font-bold">TheProg Editor</span>
@@ -40,6 +39,26 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
             v{APP_VERSION}
           </span>
         </div>
+
+        {/* Botão de Selecionar Workspace */}
+        <button
+          onClick={openWorkspacePicker}
+          title={`Espaço de trabalho ativo: ${activeWorkspace.name} (${
+            activeWorkspace.type === 'local' ? 'Disco Local' : 'Sandbox Virtual'
+          }). Clique para trocar.`}
+          className={`hidden sm:flex items-center space-x-1.5 px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+            activeWorkspace.type === 'local'
+              ? 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800/60 hover:bg-blue-100 dark:hover:bg-blue-900/40'
+              : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+          }`}
+        >
+          {activeWorkspace.type === 'local' ? (
+            <FolderOpen className="w-3.5 h-3.5" />
+          ) : (
+            <Box className="w-3.5 h-3.5" />
+          )}
+          <span className="max-w-[130px] truncate">{activeWorkspace.name}</span>
+        </button>
       </div>
 
       {/* Direita: Ações principais */}
@@ -100,57 +119,13 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onOpenVMModal }) => {
           </button>
         </div>
 
-        {/* Badge Unificado do Sistema (Compilador Clang WebAssembly + Linux v86) */}
-        {systemStatus === 'loading' && (
-          <button
-            onClick={onOpenVMModal}
-            title={`Sistema carregando (${systemProgressPercent}%). Compilador Clang e Linux em inicialização. Clique para detalhes.`}
-            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800/60 text-[11px] text-blue-700 dark:text-blue-300 select-none animate-pulse cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-            <span className="font-medium">Sistema {systemProgressPercent}%</span>
-          </button>
-        )}
-
-        {systemStatus === 'ready' && (
-          <button
-            onClick={onOpenVMModal}
-            title="Sistema 100% pronto (Clang C/C++ WebAssembly e Linux integrados). Clique para ver detalhes."
-            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/50 text-[11px] text-emerald-700 dark:text-emerald-300 select-none cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
-          >
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="font-medium">Sistema</span>
-          </button>
-        )}
-
-        {systemStatus === 'running' && (
-          <button
-            onClick={onOpenVMModal}
-            title="Sistema executando código... Clique para ver detalhes."
-            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] text-amber-700 dark:text-amber-300 select-none animate-pulse cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-amber-500" />
-            <span className="font-medium">Sistema</span>
-          </button>
-        )}
-
-        {systemStatus === 'error' && (
-          <button
-            onClick={onOpenVMModal}
-            title={`Erro no Sistema: ${systemStatusMessage}. Clique para ver detalhes e reconectar.`}
-            className="hidden sm:flex items-center space-x-1.5 px-2.5 py-0.5 rounded bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 text-[11px] text-rose-700 dark:text-rose-300 cursor-pointer"
-          >
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
-            <span className="font-medium">Sistema: Erro</span>
-          </button>
-        )}
 
         {/* Badge Online / Offline em tempo real (Apenas Ícone) */}
         <div
           title={
             isOnline
               ? 'Conectado à internet (Online)'
-              : 'Sem conexão com a internet (Offline). O TheProg Editor opera 100% autônomo via PWA.'
+              : 'Sem conexão com a internet (Offline). O TheProg Editor é resistente a oscilações e opera de forma autônoma via PWA.'
           }
           className={`hidden md:flex items-center justify-center w-6 h-6 rounded border transition-colors ${
             isOnline
