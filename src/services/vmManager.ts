@@ -1,5 +1,7 @@
 import type { VMStatus } from '../types/editor';
-import { compileC, executeWasmBinary } from './cCompiler';
+import { compileC, executeWasmBinary, terminateCompilerWorker } from './cCompiler';
+
+export type ConsoleTab = 'compilation' | 'execution';
 
 type OutputListener = (data: string) => void;
 type StatusListener = (status: VMStatus, message?: string) => void;
@@ -7,7 +9,10 @@ type StatusListener = (status: VMStatus, message?: string) => void;
 class VMManager {
   public readonly PROMPT = '';
   private status: VMStatus = 'idle';
-  private outputListeners: Set<OutputListener> = new Set();
+  private activeTab: ConsoleTab = 'execution';
+  private tabListeners: Set<(tab: ConsoleTab) => void> = new Set();
+  private compilationListeners: Set<OutputListener> = new Set();
+  private executionListeners: Set<OutputListener> = new Set();
   private statusListeners: Set<StatusListener> = new Set();
 
   private isExecuting: boolean = false;
@@ -20,9 +25,33 @@ class VMManager {
     this.setStatus('ready', 'Sistema pronto');
   }
 
+  public subscribeActiveTab(listener: (tab: ConsoleTab) => void): () => void {
+    this.tabListeners.add(listener);
+    listener(this.activeTab);
+    return () => this.tabListeners.delete(listener);
+  }
+
+  public setActiveTab(tab: ConsoleTab) {
+    this.activeTab = tab;
+    this.tabListeners.forEach((l) => l(tab));
+  }
+
+  public getActiveTab(): ConsoleTab {
+    return this.activeTab;
+  }
+
+  public subscribeCompilationOutput(listener: OutputListener): () => void {
+    this.compilationListeners.add(listener);
+    return () => this.compilationListeners.delete(listener);
+  }
+
+  public subscribeExecutionOutput(listener: OutputListener): () => void {
+    this.executionListeners.add(listener);
+    return () => this.executionListeners.delete(listener);
+  }
+
   public subscribeOutput(listener: OutputListener): () => void {
-    this.outputListeners.add(listener);
-    return () => this.outputListeners.delete(listener);
+    return this.subscribeExecutionOutput(listener);
   }
 
   public subscribeStatus(listener: StatusListener): () => void {
@@ -36,10 +65,18 @@ class VMManager {
     this.statusListeners.forEach((l) => l(status, message));
   }
 
-  public emitOutput(text: string) {
-    // Normalização estrita de quebras de linha para o xterm
+  public emitCompilationOutput(text: string) {
     const normalized = text.replace(/\r?\n/g, '\r\n');
-    this.outputListeners.forEach((l) => l(normalized));
+    this.compilationListeners.forEach((l) => l(normalized));
+  }
+
+  public emitExecutionOutput(text: string) {
+    const normalized = text.replace(/\r?\n/g, '\r\n');
+    this.executionListeners.forEach((l) => l(normalized));
+  }
+
+  public emitOutput(text: string) {
+    this.emitExecutionOutput(text);
   }
 
   public getStatus(): VMStatus {
@@ -50,15 +87,25 @@ class VMManager {
     // Compatibilidade reversa
   }
 
-  public clearTerminal() {
+  public clearCompilationTerminal() {
+    this.emitCompilationOutput('\x1b[2J\x1b[3J\x1b[H');
+  }
+
+  public clearExecutionTerminal() {
     this.stdinInputBuffer = '';
-    // ANSI: 2J (limpa tela), 3J (limpa scrollback), H (cursor no início)
-    this.emitOutput('\x1b[2J\x1b[3J\x1b[H');
+    this.emitExecutionOutput('\x1b[2J\x1b[3J\x1b[H');
+  }
+
+  public clearTerminal() {
+    this.clearCompilationTerminal();
+    this.clearExecutionTerminal();
   }
 
   public stopExecution() {
     if (!this.isExecuting && !this.isAwaitingProgramInput) return;
-    this.emitOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
+    this.emitExecutionOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
+    this.emitCompilationOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
+    terminateCompilerWorker();
     if (this.currentWasmController) {
       try {
         this.currentWasmController.abort();
@@ -91,7 +138,7 @@ class VMManager {
 
       // Enter envia linha para o programa
       if (data === '\r' || data === '\n') {
-        this.emitOutput('\r\n');
+        this.emitExecutionOutput('\r\n');
         const toSend = this.stdinInputBuffer + '\n';
         this.stdinInputBuffer = '';
         this.isAwaitingProgramInput = false;
@@ -105,7 +152,7 @@ class VMManager {
       if (data === '\x7f' || data === '\b') {
         if (this.stdinInputBuffer.length > 0) {
           this.stdinInputBuffer = this.stdinInputBuffer.slice(0, -1);
-          this.emitOutput('\b \b');
+          this.emitExecutionOutput('\b \b');
         }
         return;
       }
@@ -116,12 +163,12 @@ class VMManager {
         const lines = full.split('\n');
         const remaining = lines.pop() || '';
         for (const line of lines) {
-          this.emitOutput(line + '\r\n');
+          this.emitExecutionOutput(line + '\r\n');
           this.currentWasmController?.sendStdin(line + '\n');
         }
         this.stdinInputBuffer = remaining;
         if (remaining) {
-          this.emitOutput(remaining);
+          this.emitExecutionOutput(remaining);
         }
         return;
       }
@@ -129,7 +176,7 @@ class VMManager {
       // Caracteres imprimíveis normais
       if (data.length === 1 && data.charCodeAt(0) >= 32) {
         this.stdinInputBuffer += data;
-        this.emitOutput(data);
+        this.emitExecutionOutput(data);
         return;
       }
 
@@ -147,17 +194,17 @@ class VMManager {
 
     // Console ocioso (não está executando nada)
     if (data === '\x03') {
-      this.emitOutput('^C\r\n');
+      this.emitExecutionOutput('^C\r\n');
       return;
     }
 
     if (data === '\r' || data === '\n') {
-      this.emitOutput('\r\n');
+      this.emitExecutionOutput('\r\n');
     }
   }
 
   /**
-   * Compila e executa o código com isolamento estrito de diretório e saída limpa
+   * Compila e executa o código com separação estrita em abas de Compilação e Execução
    */
   public async runCode(
     mainFilename: string,
@@ -170,7 +217,12 @@ class VMManager {
       this.stopExecution();
     }
 
-    this.clearTerminal();
+    // 1. Limpa ambos os terminais
+    this.clearCompilationTerminal();
+    this.clearExecutionTerminal();
+
+    // 2. Inicia na aba de compilação
+    this.setActiveTab('compilation');
 
     this.isExecuting = true;
     this.setStatus('running', `Compilando ${mainFilename}...`);
@@ -182,8 +234,8 @@ class VMManager {
     const binaryName = mainFilename.replace(/\.[^/.]+$/, '');
 
     if (isHeader) {
-      this.emitOutput(
-        `\r\n\x1b[33m[Aviso: '${mainFilename}' é um arquivo de cabeçalho (.h/.hpp). Abra o arquivo .c ou .cpp para executar]\x1b[0m\r\n`
+      this.emitCompilationOutput(
+        `\x1b[33m[Aviso: '${mainFilename}' é um arquivo de cabeçalho (.h/.hpp). Abra o arquivo .c ou .cpp para executar]\x1b[0m\r\n`
       );
       this.isExecuting = false;
       this.setStatus('ready', 'Pronto');
@@ -191,8 +243,8 @@ class VMManager {
     }
 
     if (!isC && !isCpp) {
-      this.emitOutput(
-        `\r\n\x1b[33m[Aviso: o TheProg Editor executa código C e C++ (.c, .cpp)]\x1b[0m\r\n`
+      this.emitCompilationOutput(
+        `\x1b[33m[Aviso: o TheProg Editor executa código C e C++ (.c, .cpp)]\x1b[0m\r\n`
       );
       this.isExecuting = false;
       this.setStatus('ready', 'Pronto');
@@ -210,30 +262,43 @@ class VMManager {
       }
     });
 
+    const compilerCmd = isCpp ? 'clang++' : 'clang';
+    this.emitCompilationOutput(
+      `\x1b[90m$ ${compilerCmd} -O0 ${sources.join(' ')} -o ${binaryName}.wasm\x1b[0m\r\n`
+    );
+
     try {
-      const wasmBinary = await compileC(
+      const compileResult = await compileC(
         sources,
         folderFiles,
         binaryName,
         (out) => {
-          this.emitOutput(out);
+          this.emitCompilationOutput(out);
         },
         extraCompilerArgs
       );
 
+      const { wasmBinary, wasCached } = compileResult;
+
       if (!wasmBinary) {
         this.isExecuting = false;
         this.setStatus('error', 'Erro de compilação');
-        this.emitOutput(`\r\n\x1b[31m[Falha na compilação]\x1b[0m\r\n`);
+        this.emitCompilationOutput(`\r\n\x1b[31m[Falha na compilação: verifique os erros acima]\x1b[0m\r\n`);
         return;
       }
 
+      this.emitCompilationOutput(
+        `\x1b[32m[Compilação concluída com sucesso${wasCached ? ' (cached)' : ''}]\x1b[0m\r\n`
+      );
+
+      // 3. Compilação concluída: Alterna automaticamente para a aba de Execução
+      this.setActiveTab('execution');
       this.setStatus('running', `Executando ${binaryName}...`);
 
       const startTime = performance.now();
 
       const exitCode = await executeWasmBinary(binaryName, wasmBinary, {
-        onOutput: (out) => this.emitOutput(out),
+        onOutput: (out) => this.emitExecutionOutput(out),
         onNeedStdin: () => {
           this.isAwaitingProgramInput = true;
           this.stdinInputBuffer = '';
@@ -248,6 +313,7 @@ class VMManager {
 
       const durationMs = performance.now() - startTime;
       const durationFormatted = (durationMs / 1000).toFixed(3) + 's';
+      const cacheSuffix = wasCached ? ' (cached)' : '';
 
       this.currentWasmController = null;
       this.currentAbortController = null;
@@ -257,13 +323,17 @@ class VMManager {
 
       this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Concluído' : 'Finalizado com erro');
       if (exitCode === 0) {
-        this.emitOutput(`\r\n\x1b[90m[Processo finalizado com sucesso em ${durationFormatted}]\x1b[0m\r\n`);
+        this.emitExecutionOutput(`\r\n\x1b[90m[Processo finalizado com sucesso em ${durationFormatted}${cacheSuffix}]\x1b[0m\r\n`);
       } else {
-        this.emitOutput(`\r\n\x1b[31m[Processo finalizado com código ${exitCode} em ${durationFormatted}]\x1b[0m\r\n`);
+        this.emitExecutionOutput(`\r\n\x1b[31m[Processo finalizado com código ${exitCode} em ${durationFormatted}${cacheSuffix}]\x1b[0m\r\n`);
       }
     } catch (err: any) {
       console.error('Erro na execução:', err);
-      this.emitOutput(`\r\n\x1b[31m[Erro na execução: ${err?.message || err}]\x1b[0m\r\n`);
+      if (this.activeTab === 'compilation') {
+        this.emitCompilationOutput(`\r\n\x1b[31m[Erro: ${err?.message || err}]\x1b[0m\r\n`);
+      } else {
+        this.emitExecutionOutput(`\r\n\x1b[31m[Erro na execução: ${err?.message || err}]\x1b[0m\r\n`);
+      }
       this.isExecuting = false;
       this.setStatus('error', 'Erro de execução');
     }

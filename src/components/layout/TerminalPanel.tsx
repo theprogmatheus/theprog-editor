@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import {
   Terminal as TerminalIcon,
+  Hammer,
   Trash2,
   ChevronUp,
   ChevronDown,
@@ -13,14 +14,22 @@ import {
   ClipboardPaste,
   CheckSquare,
 } from 'lucide-react';
-import { vmManager } from '../../services/vmManager';
+import { vmManager, type ConsoleTab } from '../../services/vmManager';
 import { useTheme } from '../../context/ThemeContext';
 import { useEditor } from '../../context/EditorContext';
 
 export const TerminalPanel: React.FC = () => {
-  const terminalRef = useRef<HTMLDivElement>(null);
-  const xtermInstance = useRef<XTerm | null>(null);
-  const fitAddonRef = useRef<FitAddon | null>(null);
+  const compilationRef = useRef<HTMLDivElement>(null);
+  const executionRef = useRef<HTMLDivElement>(null);
+
+  const compilationXterm = useRef<XTerm | null>(null);
+  const executionXterm = useRef<XTerm | null>(null);
+
+  const compilationFitAddon = useRef<FitAddon | null>(null);
+  const executionFitAddon = useRef<FitAddon | null>(null);
+
+  const [activeTab, setActiveTab] = useState<ConsoleTab>(() => vmManager.getActiveTab());
+
   const { theme } = useTheme();
   const {
     isTerminalMinimized,
@@ -44,173 +53,214 @@ export const TerminalPanel: React.FC = () => {
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
+  // Sincroniza aba ativa com o vmManager
   useEffect(() => {
-    if (!terminalRef.current) return;
+    const unsubscribe = vmManager.subscribeActiveTab((tab) => {
+      setActiveTab(tab);
+    });
+    return unsubscribe;
+  }, []);
 
-    // Instancia o Xterm com fundo exatamente idêntico ao Monaco Editor (#1e1e1e escuro / #ffffff claro)
-    const initialFontSize = terminalFontSize;
-    const term = new XTerm({
+  const getThemeConfig = useCallback(() => {
+    return theme === 'dark'
+      ? {
+          background: '#1e1e1e', // Cor idêntica ao textarea / Monaco dark
+          foreground: '#cccccc',
+          cursor: '#ffffff',
+          selectionBackground: '#264f78',
+          black: '#000000',
+          red: '#cd3131',
+          green: '#0dbc79',
+          yellow: '#e5e510',
+          blue: '#2472c8',
+          magenta: '#bc3fbc',
+          cyan: '#11a8cd',
+          white: '#e5e5e5',
+        }
+      : {
+          background: '#ffffff', // Cor idêntica ao textarea / Monaco light
+          foreground: '#1e1e1e',
+          cursor: '#1e1e1e',
+          selectionBackground: '#add6ff',
+          black: '#000000',
+          red: '#cd3131',
+          green: '#008000',
+          yellow: '#795e26',
+          blue: '#0000ff',
+          magenta: '#af00db',
+          cyan: '#098658',
+          white: '#ffffff',
+        };
+  }, [theme]);
+
+  const safeFit = useCallback(() => {
+    const currentTab = vmManager.getActiveTab();
+    if (currentTab === 'compilation') {
+      if (compilationRef.current && compilationFitAddon.current) {
+        const { clientWidth, clientHeight } = compilationRef.current;
+        if (clientWidth > 60 && clientHeight > 40) {
+          try {
+            compilationFitAddon.current.fit();
+          } catch {}
+        }
+      }
+    } else {
+      if (executionRef.current && executionFitAddon.current) {
+        const { clientWidth, clientHeight } = executionRef.current;
+        if (clientWidth > 60 && clientHeight > 40) {
+          try {
+            executionFitAddon.current.fit();
+          } catch {}
+        }
+      }
+    }
+  }, []);
+
+  const safeFitRef = useRef<() => void>(safeFit);
+  safeFitRef.current = safeFit;
+
+  // Inicialização dos dois terminais (Compilação e Execução)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!compilationRef.current || !executionRef.current) return;
+
+    const termTheme = getThemeConfig();
+
+    // 1. Terminal de Compilação
+    const compTerm = new XTerm({
+      cursorBlink: false,
+      allowTransparency: true,
+      fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
+      fontSize: terminalFontSize,
+      lineHeight: 1.2,
+      theme: termTheme,
+    });
+    const compFit = new FitAddon();
+    const compLinks = new WebLinksAddon();
+    compTerm.loadAddon(compFit);
+    compTerm.loadAddon(compLinks);
+    compTerm.open(compilationRef.current);
+
+    compilationXterm.current = compTerm;
+    compilationFitAddon.current = compFit;
+
+    // Ctrl+C no terminal de compilação interrompe compilação
+    compTerm.onData((data) => {
+      if (data === '\x03') {
+        vmManager.stopExecution();
+      }
+    });
+
+    const unsubComp = vmManager.subscribeCompilationOutput((data) => {
+      compTerm.write(data);
+    });
+
+    // 2. Terminal de Execução
+    const execTerm = new XTerm({
       cursorBlink: true,
       allowTransparency: true,
       fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
-      fontSize: initialFontSize,
+      fontSize: terminalFontSize,
       lineHeight: 1.2,
-      theme:
-        theme === 'dark'
-          ? {
-              background: '#1e1e1e', // Cor idêntica ao textarea / Monaco dark
-              foreground: '#cccccc',
-              cursor: '#ffffff',
-              selectionBackground: '#264f78',
-              black: '#000000',
-              red: '#cd3131',
-              green: '#0dbc79',
-              yellow: '#e5e510',
-              blue: '#2472c8',
-              magenta: '#bc3fbc',
-              cyan: '#11a8cd',
-              white: '#e5e5e5',
-            }
-          : {
-              background: '#ffffff', // Cor idêntica ao textarea / Monaco light
-              foreground: '#1e1e1e',
-              cursor: '#1e1e1e',
-              selectionBackground: '#add6ff',
-              black: '#000000',
-              red: '#cd3131',
-              green: '#008000',
-              yellow: '#795e26',
-              blue: '#0000ff',
-              magenta: '#af00db',
-              cyan: '#098658',
-              white: '#ffffff',
-            },
+      theme: termTheme,
     });
+    const execFit = new FitAddon();
+    const execLinks = new WebLinksAddon();
+    execTerm.loadAddon(execFit);
+    execTerm.loadAddon(execLinks);
+    execTerm.open(executionRef.current);
 
-    const fitAddon = new FitAddon();
-    const webLinksAddon = new WebLinksAddon();
+    executionXterm.current = execTerm;
+    executionFitAddon.current = execFit;
 
-    term.loadAddon(fitAddon);
-    term.loadAddon(webLinksAddon);
-
-    term.open(terminalRef.current);
-
-    xtermInstance.current = term;
-    fitAddonRef.current = fitAddon;
-
-    term.onData((data) => {
+    execTerm.onData((data) => {
       vmManager.sendInput(data);
     });
 
-    const unsubscribe = vmManager.subscribeOutput((data) => {
-      term.write(data);
+    const unsubExec = vmManager.subscribeExecutionOutput((data) => {
+      execTerm.write(data);
     });
 
-    // ResizeObserver resiliente para nunca encolher ou corromper o canvas
-    const safeFit = () => {
-      if (terminalRef.current && fitAddonRef.current) {
-        const { clientWidth, clientHeight } = terminalRef.current;
-        if (clientWidth > 60 && clientHeight > 40) {
-          try {
-            fitAddonRef.current.fit();
-          } catch (e) {
-            // ignore fit errors during rapid unmount
-          }
-        }
-      }
+    const handleWindowResize = () => {
+      safeFitRef.current();
     };
 
     const resizeObserver = new ResizeObserver(() => {
-      requestAnimationFrame(safeFit);
+      requestAnimationFrame(() => safeFitRef.current());
     });
 
-    resizeObserver.observe(terminalRef.current);
-    window.addEventListener('resize', safeFit);
+    if (compilationRef.current) resizeObserver.observe(compilationRef.current);
+    if (executionRef.current) resizeObserver.observe(executionRef.current);
+    window.addEventListener('resize', handleWindowResize);
 
-    // Ajuste inicial com pequeno delay para garantir dimensões do container
-    setTimeout(safeFit, 60);
+    setTimeout(() => safeFitRef.current(), 60);
 
     return () => {
       resizeObserver.disconnect();
-      window.removeEventListener('resize', safeFit);
-      unsubscribe();
-      term.dispose();
-      xtermInstance.current = null;
-      fitAddonRef.current = null;
+      window.removeEventListener('resize', handleWindowResize);
+      unsubComp();
+      unsubExec();
+      compTerm.dispose();
+      execTerm.dispose();
+      compilationXterm.current = null;
+      executionXterm.current = null;
+      compilationFitAddon.current = null;
+      executionFitAddon.current = null;
     };
   }, []);
 
-  // Atualiza dinamicamente as cores do terminal ao trocar o tema sem descartar o buffer/histórico
+  // Atualiza dinamicamente temas
   useEffect(() => {
-    if (!xtermInstance.current) return;
-    xtermInstance.current.options.theme =
-      theme === 'dark'
-        ? {
-            background: '#1e1e1e', // Cor idêntica ao textarea / Monaco dark
-            foreground: '#cccccc',
-            cursor: '#ffffff',
-            selectionBackground: '#264f78',
-            black: '#000000',
-            red: '#cd3131',
-            green: '#0dbc79',
-            yellow: '#e5e510',
-            blue: '#2472c8',
-            magenta: '#bc3fbc',
-            cyan: '#11a8cd',
-            white: '#e5e5e5',
-          }
-        : {
-            background: '#ffffff', // Cor idêntica ao textarea / Monaco light
-            foreground: '#1e1e1e',
-            cursor: '#1e1e1e',
-            selectionBackground: '#add6ff',
-            black: '#000000',
-            red: '#cd3131',
-            green: '#008000',
-            yellow: '#795e26',
-            blue: '#0000ff',
-            magenta: '#af00db',
-            cyan: '#098658',
-            white: '#ffffff',
-          };
-  }, [theme]);
+    const termTheme = getThemeConfig();
+    if (compilationXterm.current) {
+      compilationXterm.current.options.theme = termTheme;
+    }
+    if (executionXterm.current) {
+      executionXterm.current.options.theme = termTheme;
+    }
+  }, [theme, getThemeConfig]);
+
+  // Atualiza tamanho de fonte
+  useEffect(() => {
+    if (compilationXterm.current) {
+      compilationXterm.current.options.fontSize = terminalFontSize;
+      try {
+        compilationFitAddon.current?.fit();
+      } catch {}
+    }
+    if (executionXterm.current) {
+      executionXterm.current.options.fontSize = terminalFontSize;
+      try {
+        executionFitAddon.current?.fit();
+      } catch {}
+    }
+  }, [terminalFontSize]);
+
+  // Sempre que alternar abas, recalcula dimensões e foca terminal
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      safeFit();
+      if (activeTab === 'execution') {
+        executionXterm.current?.focus();
+      } else {
+        compilationXterm.current?.focus();
+      }
+    }, 40);
+    return () => clearTimeout(timer);
+  }, [activeTab, safeFit]);
 
   // Sempre que o terminal for restaurado ou maximizado, recalcula dimensões
   useEffect(() => {
     if (!isTerminalMinimized) {
       const timers = [
-        setTimeout(() => {
-          if (terminalRef.current && fitAddonRef.current) {
-            try {
-              fitAddonRef.current.fit();
-            } catch (e) {}
-          }
-        }, 50),
-        setTimeout(() => {
-          if (terminalRef.current && fitAddonRef.current) {
-            try {
-              fitAddonRef.current.fit();
-            } catch (e) {}
-          }
-        }, 200),
+        setTimeout(safeFit, 50),
+        setTimeout(safeFit, 200),
       ];
       return () => timers.forEach(clearTimeout);
     }
-  }, [isTerminalMinimized, isMaximized]);
+  }, [isTerminalMinimized, isMaximized, safeFit]);
 
-  // Atualiza a fonte do terminal dinamicamente quando alterada
-  useEffect(() => {
-    if (xtermInstance.current) {
-      xtermInstance.current.options.fontSize = terminalFontSize;
-      if (fitAddonRef.current) {
-        try {
-          fitAddonRef.current.fit();
-        } catch {}
-      }
-    }
-  }, [terminalFontSize]);
-
-  // Fecha o menu de contexto do terminal ao clicar fora, apertar ESC ou abrir outro menu
+  // Fecha o menu de contexto ao clicar fora ou apertar ESC
   useEffect(() => {
     const handleClose = () => setContextMenu(null);
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -228,19 +278,22 @@ export const TerminalPanel: React.FC = () => {
     };
   }, []);
 
-  // Foco automático imediato e limpeza do console ao clicar em Executar ou apertar F5
+  // Eventos globais de foco e limpeza
   useEffect(() => {
     const handleFocus = () => {
       setIsTerminalMinimized(false);
       setTimeout(() => {
-        xtermInstance.current?.focus();
+        if (vmManager.getActiveTab() === 'compilation') {
+          compilationXterm.current?.focus();
+        } else {
+          executionXterm.current?.focus();
+        }
       }, 50);
     };
 
     const handleClearEvent = () => {
-      if (xtermInstance.current) {
-        xtermInstance.current.reset();
-      }
+      compilationXterm.current?.reset();
+      executionXterm.current?.reset();
     };
 
     window.addEventListener('theprog-focus-console', handleFocus);
@@ -252,15 +305,19 @@ export const TerminalPanel: React.FC = () => {
   }, [setIsTerminalMinimized]);
 
   const handleClear = () => {
-    if (xtermInstance.current) {
-      xtermInstance.current.reset();
+    if (activeTab === 'compilation') {
+      compilationXterm.current?.reset();
+      vmManager.clearCompilationTerminal();
+    } else {
+      executionXterm.current?.reset();
+      vmManager.clearExecutionTerminal();
     }
-    vmManager.clearTerminal();
   };
 
   const handleCopy = useCallback(async () => {
     setContextMenu(null);
-    const selection = xtermInstance.current?.getSelection();
+    const term = activeTab === 'compilation' ? compilationXterm.current : executionXterm.current;
+    const selection = term?.getSelection();
     if (selection) {
       try {
         await navigator.clipboard.writeText(selection);
@@ -268,7 +325,7 @@ export const TerminalPanel: React.FC = () => {
         console.warn('Erro ao copiar seleção do terminal:', err);
       }
     }
-  }, []);
+  }, [activeTab]);
 
   const handlePaste = useCallback(async () => {
     setContextMenu(null);
@@ -284,8 +341,9 @@ export const TerminalPanel: React.FC = () => {
 
   const handleSelectAll = useCallback(() => {
     setContextMenu(null);
-    xtermInstance.current?.selectAll();
-  }, []);
+    const term = activeTab === 'compilation' ? compilationXterm.current : executionXterm.current;
+    term?.selectAll();
+  }, [activeTab]);
 
   return (
     <div
@@ -293,13 +351,43 @@ export const TerminalPanel: React.FC = () => {
         isTerminalMinimized ? 'h-8' : isMaximized ? 'h-[75vh]' : 'h-52 sm:h-64'
       }`}
     >
-      {/* Topo do painel de Console */}
-      <div className="h-8 px-3 flex items-center justify-between bg-[#ececec] dark:bg-[#252526] select-none text-xs border-b border-[#e5e5e5] dark:border-[#202020] text-[#333333] dark:text-[#cccccc] shrink-0">
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-1.5 font-semibold text-black dark:text-white">
+      {/* Topo do painel com Abas de Compilação e Execução */}
+      <div className="h-8 px-2 flex items-center justify-between bg-[#ececec] dark:bg-[#252526] select-none text-xs border-b border-[#e5e5e5] dark:border-[#202020] text-[#333333] dark:text-[#cccccc] shrink-0">
+        {/* Abas Alternáveis */}
+        <div className="flex items-center h-full space-x-1">
+          {/* Aba Compilação */}
+          <button
+            onClick={() => vmManager.setActiveTab('compilation')}
+            title="Exibir saída da compilação (flags, avisos e status do Clang)"
+            className={`h-full px-3 flex items-center space-x-1.5 text-xs font-semibold cursor-pointer transition-all relative ${
+              activeTab === 'compilation'
+                ? 'bg-white dark:bg-[#1e1e1e] text-black dark:text-white'
+                : 'text-[#666666] dark:text-[#888888] hover:bg-[#e0e0e0] dark:hover:bg-[#2c2c2d] hover:text-black dark:hover:text-white'
+            }`}
+          >
+            <Hammer className="w-3.5 h-3.5 text-[#007acc] dark:text-[#3794ff]" />
+            <span>Compilação</span>
+            {activeTab === 'compilation' && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#007acc] dark:bg-[#3794ff]" />
+            )}
+          </button>
+
+          {/* Aba Execução */}
+          <button
+            onClick={() => vmManager.setActiveTab('execution')}
+            title="Exibir saída de execução interativa (stdin, stdout e encerramento)"
+            className={`h-full px-3 flex items-center space-x-1.5 text-xs font-semibold cursor-pointer transition-all relative ${
+              activeTab === 'execution'
+                ? 'bg-white dark:bg-[#1e1e1e] text-black dark:text-white'
+                : 'text-[#666666] dark:text-[#888888] hover:bg-[#e0e0e0] dark:hover:bg-[#2c2c2d] hover:text-black dark:hover:text-white'
+            }`}
+          >
             <TerminalIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-            <span className="tracking-wide text-[11px]">CONSOLE DE EXECUÇÃO</span>
-          </div>
+            <span>Execução</span>
+            {activeTab === 'execution' && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-emerald-600 dark:bg-emerald-400" />
+            )}
+          </button>
         </div>
 
         {/* Controles do console */}
@@ -336,7 +424,7 @@ export const TerminalPanel: React.FC = () => {
 
           <button
             onClick={handleClear}
-            title="Limpar Console"
+            title={`Limpar Aba de ${activeTab === 'compilation' ? 'Compilação' : 'Execução'}`}
             className="p-1 rounded hover:bg-[#dedede] dark:hover:bg-[#333333] hover:text-black dark:hover:text-white cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -358,7 +446,7 @@ export const TerminalPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Área do Terminal Xterm com Menu de Contexto Próprio */}
+      {/* Área dos Terminais Xterm com Menu de Contexto Próprio */}
       <div
         style={{ display: isTerminalMinimized ? 'none' : 'block' }}
         data-terminal-container="true"
@@ -374,7 +462,16 @@ export const TerminalPanel: React.FC = () => {
         }}
         className="flex-1 w-full overflow-hidden bg-white dark:bg-[#1e1e1e] relative"
       >
-        <div ref={terminalRef} className="w-full h-full" />
+        <div
+          ref={compilationRef}
+          style={{ display: activeTab === 'compilation' ? 'block' : 'none' }}
+          className="w-full h-full"
+        />
+        <div
+          ref={executionRef}
+          style={{ display: activeTab === 'execution' ? 'block' : 'none' }}
+          className="w-full h-full"
+        />
 
         {/* Menu de Contexto Útil do Terminal */}
         {contextMenu && (
@@ -393,16 +490,18 @@ export const TerminalPanel: React.FC = () => {
               <span className="text-[10px] opacity-60">Ctrl+Shift+C</span>
             </button>
 
-            <button
-              onClick={handlePaste}
-              className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
-            >
-              <div className="flex items-center space-x-2.5">
-                <ClipboardPaste className="w-3.5 h-3.5" />
-                <span>Colar</span>
-              </div>
-              <span className="text-[10px] opacity-60">Ctrl+Shift+V</span>
-            </button>
+            {activeTab === 'execution' && (
+              <button
+                onClick={handlePaste}
+                className="w-full px-3 py-1.5 flex items-center justify-between hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <ClipboardPaste className="w-3.5 h-3.5" />
+                  <span>Colar</span>
+                </div>
+                <span className="text-[10px] opacity-60">Ctrl+Shift+V</span>
+              </button>
+            )}
 
             <button
               onClick={handleSelectAll}
@@ -424,7 +523,7 @@ export const TerminalPanel: React.FC = () => {
               className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              <span>Limpar Console</span>
+              <span>Limpar Aba</span>
             </button>
           </div>
         )}

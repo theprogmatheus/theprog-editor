@@ -1,9 +1,9 @@
-# 💻 TheProg Editor (v0.3.0)
+# 💻 TheProg Editor (v0.4.1)
 
 > **IDE Web PWA 100% Offline com compilação e execução nativa em C e C++ via WebAssembly.**
 
 [![Produção](https://img.shields.io/badge/Acessar-matheus.eti.br%2Ftheprog--editor-007acc?style=flat&logo=googlechrome&logoColor=white)](https://matheus.eti.br/theprog-editor)
-![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)
+![Version](https://img.shields.io/badge/version-0.4.1-blue.svg)
 ![PWA](https://img.shields.io/badge/PWA-100%25_Offline-emerald.svg)
 ![Language](https://img.shields.io/badge/Language-C%20%2F%20C%2B%2B-00599c.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
@@ -14,22 +14,27 @@ O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda 
 
 ## 🚀 Principais Recursos
 
-- **Compilador Clang Real no Navegador:** Compilação autêntica em WebAssembly através do `@yowasp/clang` com suporte a C11/C17 e C++17/C++20.
-- **Sistema de Arquivos Virtual Bidirecional (WASI):** Suporte autêntico e completo a manipulação de arquivos com `fopen()`, `fread()`, `fwrite()`, `fprintf()`, `fscanf()`, binários e texto. Arquivos criados ou modificados pelo seu código em C aparecem instantaneamente na árvore de arquivos do editor e são persistidos no IndexedDB, respeitando a hierarquia de diretórios!
-- **100% Pronto para Ensino de AP1, AP2, ED1 e ED2:** Suporte nativo a ponteiros, estruturas heterogêneas (`struct`), alocação dinâmica (`malloc`/`free`/`realloc`), listas encadeadas, filas, pilhas, árvores binárias e persistência em arquivos de dados.
-- **Console de Execução Autêntico & Minimalista:** Sem emulações ou shells simulados. O painel inferior atua como um console de execução limpo, exibindo exclusivamente as entradas e saídas do seu programa e diagnósticos reais do compilador.
-- **Medição Precisa do Tempo de Execução:** Ao término da execução de qualquer programa, o console exibe de forma discreta o tempo real gasto pelo processo (em segundos com 3 casas decimais, ex.: `[Processo finalizado com sucesso em 0.042s]`), ideal para análise de complexidade algorítmica e comparação de desempenho (ex.: algoritmos de ordenação).
-- **Início Minimizado, Auto-Clear & Foco Automático (F5):** Ao executar (`F5` ou botão Executar), o console limpa automaticamente saídas antigas, se expande e transfere o foco do teclado imediatamente para a digitação (`scanf()` / `cin`).
-- **Suporte Perfeito a Acentos (UTF-8 Streaming):** Decodificador UTF-8 com buffer persistente de stream no Web Worker, permitindo ler e imprimir caracteres acentuados da língua portuguesa (ã, ç, ó, é, etc.) caractere por caractere via `fgetc` e `putchar` sem perdas ou corrupções.
-- **Persistência Integral do Estado da UI:** Abas abertas, arquivo ativo selecionado, estado da barra lateral (aberta/fechada) e estado do console (minimizado/aberto/maximizado) são preservados no `localStorage`. Ao recarregar a página (`F5`), o seu ambiente de trabalho volta exatamente ao mesmo estado anterior.
-- **Design 100% Responsivo e Suporte Mobile:** Interface moderna adaptada para smartphones e tablets, com barra lateral gaveta (drawer overlay com backdrop escuro e blur), fechamento automático ao selecionar arquivo e barra de abas com scroll touch.
-- **Isolamento de Escopo por Diretório:** Cada pasta no gerenciador de arquivos atua como um escopo autônomo de projeto. Arquivos de exercícios ou pastas diferentes jamais interferem na compilação uns dos outros.
-- **Parâmetros de Compilação Didáticos (Clang Flags):** Configuração direta de flags pelo modal de configurações com presets rápidos, padronizado por padrão com `-std=c17 -O0 -Wall -Wextra` para atender com rigor acadêmico as disciplinas de programação e estruturas de dados.
-- **Entrada Interativa com `stdin` em Tempo Real:** Suporte completo a chamadas bloqueantes como `scanf()`, `getchar()`, `cin` e `fgets()` executadas em Web Worker com sincronização por `SharedArrayBuffer` e `Atomics`.
-- **Editor Baseado no Monaco (VS Code) sem Minimapa:** Área de código 100% aproveitada na horizontal (minimapa desativado), com destaque de sintaxe, indentação automática, bracket matching, controle dinâmico do tamanho da fonte e atalhos de teclado (`F5`, `Ctrl+S`, `Ctrl+F`).
-- **Formatação de Código Industrial no Menu de Contexto:** Integração nativa com **Clang-Format** em WebAssembly (`@wasm-fmt/clang-format`), acessível diretamente pelo clique com botão direito no código ("Formatar Documento") ou via atalho de teclado `Shift + Alt + F`.
-- **Gerenciador de Arquivos Completo:** Criação, exclusão, renomeação e organização de arquivos e subdiretórios via Drag & Drop, com botão de download do projeto em ZIP acessível na barra de atividades lateral.
-- **Armazenamento 100% Local (IndexedDB):** Todos os arquivos, códigos e preferências são salvos localmente no navegador de forma durável.
+- **Compilador Clang Real no Navegador (WebAssembly):** Compilação autêntica através do `@yowasp/clang` com suporte completo a padrões C11/C17 e C++17/C++20.
+- **Compilação Assíncrona em Web Worker Dedicado:** A compilação pesada do Clang roda isolada em segundo plano (`compilerWorker.ts`), garantindo **zero congelamentos de interface (0 UI freezes)**, permitindo continuar navegando e digitando fluentemente no editor.
+- **Cache Instantâneo de Binários (Zero-Delay Re-run):** Mecanismo de hash de conteúdo para arquivos-fonte e cabeçalhos. Se o código não foi alterado desde a última compilação bem-sucedida, o editor reaproveita o binário em 0ms, indicando discretamente `(cached)` na finalização do processo.
+- **Console Organizado em Abas (Compilação & Execução):**
+  - **Aba "Compilação":** Exibe o comando executado pelo Clang, flags de compilação, avisos (*warnings*) e diagnósticos de erro. Se houver falha, a aba permanece aberta com a linha do erro destacada.
+  - **Aba "Execução":** Canal limpo e dedicado exclusivamente às entradas e saídas do programa (*stdin*, *stdout*, *stderr*) e mensagem de encerramento com tempo de execução e código de retorno.
+  - **Alternância Automática de Abas:** O editor alterna dinamicamente para a aba de compilação no início do processo e para a de execução assim que o binário é gerado, mantendo as duas saídas independentes e consultáveis a qualquer momento.
+- **Botão Explícito "Compilar & Executar":** Identificação clara e direta na barra superior (`TitleBar`) e no menu de contexto com atalho rápido `F5`, permitindo também interromper (`Interromper` / `Ctrl+C`) com segurança.
+- **IntelliSense & Autocompletar Inteligente para C e C++ (Monaco Editor):**
+  - **Filtro Estrito de Bibliotecas:** O autocompletar (`Ctrl+Space`) exibe apenas funções, constantes e snippets das bibliotecas incluídas via `#include <...>` (como `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<iostream>`, `<vector>`, `<string>`, etc.) ou de arquivos locais `#include "..."`.
+  - **Suporte C++ & STL:** Resolução de escopo para `std::` e detecção automática de `using namespace std;`, além de sugestão de métodos de containers (`vector`, `string`, `map`, etc.) ao digitar `.` ou `->`.
+  - **Análise Semântica de Símbolos:** Detecção automática de variáveis, structs, classes, typedefs e funções declaradas no arquivo ou em cabeçalhos locais do projeto.
+  - **Snippets Didáticos:** Modelos prontos com tabulação dinâmica (estruturas de repetição, condicionais, vetores, alocação dinâmica e templates).
+  - **Hover Tooltips & Signature Help:** Dicas de documentação ao passar o cursor sobre funções e assistência de parâmetros em tempo real ao abrir parênteses `( )`.
+- **Sistema de Arquivos Virtual Bidirecional (WASI):** Suporte autêntico a manipulação de arquivos com `fopen()`, `fread()`, `fwrite()`, `fprintf()`, `fscanf()`, `ifstream` e `ofstream`. Arquivos criados ou modificados pelo seu código aparecem instantaneamente na árvore de arquivos e são persistidos no IndexedDB.
+- **100% Pronto para Ensino Acadêmico (AP1, AP2, ED1 e ED2):** Suporte nativo a ponteiros, structs, classes, alocação dinâmica (`malloc`/`free`/`new`/`delete`), listas encadeadas, pilhas, filas e árvores binárias.
+- **Entrada Interativa com `stdin` em Tempo Real:** Suporte completo a chamadas bloqueantes como `scanf()`, `getchar()`, `cin` e `fgets()` executadas em Web Worker com sincronização via `SharedArrayBuffer` e `Atomics`.
+- **Suporte Perfeito a Acentos (UTF-8 Streaming):** Leitura e impressão íntegras de caracteres acentuados da língua portuguesa (ã, ç, ó, é, etc.) sem perdas ou corrupções.
+- **Formatação Industrial de Código:** Integração nativa com **Clang-Format** em WebAssembly (`@wasm-fmt/clang-format`), acessível via botão direito ou `Shift + Alt + F`.
+- **Gerenciador de Arquivos Completo:** Criação, exclusão, renomeação e organização em diretórios via Drag & Drop, com exportação do projeto em arquivo ZIP.
+- **Armazenamento 100% Local (IndexedDB):** Todos os arquivos, códigos e preferências são salvos no navegador sem envio a servidores externos.
 - **PWA Instalável e Autônomo:** Instalável em computadores e celulares, funcionando em janela própria mesmo totalmente sem internet.
 
 ---
@@ -41,8 +46,10 @@ O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda 
 | **Framework UI** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) |
 | **Build & Dev Tool** | [Vite](https://vite.dev/) + [Tailwind CSS v4](https://tailwindcss.com/) |
 | **Editor de Código** | [Monaco Editor](https://microsoft.github.io/monaco-editor/) (`@monaco-editor/react`) |
-| **Console de Execução** | [Xterm.js](https://xtermjs.org/) + Fit Addon + WebLinks Addon |
-| **Compilação C/C++** | [YoWASP Clang](https://yowasp.org/) + [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim) |
+| **Linguagem & IntelliSense** | Service Customizado de Language Features (`cLanguageService.ts`) |
+| **Console de Execução** | [Xterm.js](https://xtermjs.org/) + Fit Addon + WebLinks Addon (Multi-instância) |
+| **Compilação C/C++** | [YoWASP Clang](https://yowasp.org/) isolado em Web Worker |
+| **Ambiente de Execução** | Web Worker isolado com [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim) |
 | **Formatador** | [Clang-Format Wasm](https://github.com/wasm-fmt/clang-format) |
 | **Armazenamento** | [IndexedDB](https://developer.mozilla.org/pt-BR/docs/Web/API/IndexedDB_API) via biblioteca `idb` |
 | **Offline / PWA** | `vite-plugin-pwa` + Workbox |
@@ -60,21 +67,30 @@ theprog-editor/
 ├── src/
 │   ├── components/
 │   │   ├── common/          # Menus de contexto globais e tela de loading
-│   │   ├── layout/          # TitleBar, Sidebar, EditorArea, TerminalPanel
+│   │   ├── layout/          # TitleBar, Sidebar, EditorArea, TerminalPanel (com abas)
 │   │   └── modals/          # Ajuda, Configurações e Informações do Sistema
 │   ├── config/
-│   │   └── version.ts       # Constante de versão da aplicação (v0.3.0)
+│   │   └── version.ts       # Constante de versão da aplicação (v0.4.1)
 │   ├── context/             # Estados globais (EditorContext, ThemeContext, DialogContext)
 │   ├── hooks/               # Hooks customizados (usePwaInstall, useNetworkStatus)
 │   ├── services/
-│   │   ├── cCompiler.ts     # Pipeline de compilação Clang Wasm e execução WASI
+│   │   ├── cCompiler.ts     # Pipeline de compilação Clang, cache e despacho para Worker
+│   │   ├── monaco/          # IntelliSense, catálogos C/C++, analisador e snippets
+│   │   │   ├── cLanguageService.ts
+│   │   │   ├── cStdLibCatalog.ts
+│   │   │   ├── cppStdLibCatalog.ts
+│   │   │   ├── cSnippets.ts
+│   │   │   ├── cppSnippets.ts
+│   │   │   └── cSymbolAnalyzer.ts
 │   │   ├── storage.ts       # Camada de persistência IndexedDB
-│   │   └── vmManager.ts     # Gerenciador do Console de Execução e streams
-│   ├── types/               # Interfaces TypeScript (FileItem, EditorTab, SupportedLanguage)
+│   │   └── vmManager.ts     # Gerenciador de terminais, abas e fluxo de execução
+│   ├── types/               # Interfaces TypeScript (FileItem, EditorTab, VMStatus, ConsoleTab)
 │   ├── utils/               # Utilitários (formatCode via clang-format)
-│   └── workers/             # Web Worker isolado (wasmWorker para execução C/WASI)
+│   └── workers/             # Web Workers isolados
+│       ├── compilerWorker.ts# Worker dedicado para compilação assíncrona Clang
+│       └── wasmWorker.ts    # Worker dedicado para execução WASI com stdin bloqueante
 ├── index.html               # Entry point com script de redirecionamento canônico
-├── package.json             # Dependências e scripts de build (v0.3.0)
+├── package.json             # Dependências e scripts de build (v0.4.1)
 └── vite.config.ts           # Configurações de PWA, headers COOP/COEP e build
 ```
 
@@ -119,12 +135,10 @@ O **TheProg Editor** é hospedado via GitHub Pages e servido com proxy, SSL e ac
 👉 **[https://matheus.eti.br/theprog-editor](https://matheus.eti.br/theprog-editor)**
 
 ### ⚡ Isolamento Cross-Origin e Stdin Interativo
-Através do Cloudflare, todas as respostas HTTP recebem os cabeçalhos de isolamento de segurança:
+Todas as respostas HTTP recebem os cabeçalhos de segurança para ativar o `SharedArrayBuffer` e `Atomics.wait` no navegador:
 - `Cross-Origin-Opener-Policy: same-origin`
 - `Cross-Origin-Embedder-Policy: require-corp`
 - `Cross-Origin-Resource-Policy: cross-origin`
-
-Esses cabeçalhos ativam o uso de `SharedArrayBuffer` e `Atomics.wait` no navegador, viabilizando a compilação C/C++ e a execução de chamadas bloqueantes de `stdin` (como `scanf()`, `cin`, `getchar()` e `fgets()`) diretamente no console em tempo real.
 
 ### 🔄 Redirecionamento Canônico
 Qualquer acesso originado de servidores ou espelhos não oficiais (como `theprogmatheus.github.io`) é redirecionado imediatamente para o endereço oficial **`https://matheus.eti.br/theprog-editor`**.

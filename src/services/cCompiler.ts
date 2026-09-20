@@ -1,16 +1,34 @@
-import { commands } from '@yowasp/clang';
-
 const THEPROG_RUNTIME_HEADER = `
 #ifndef __THEPROG_RUNTIME_H
 #define __THEPROG_RUNTIME_H
 
 #include <stdio.h>
+#include <stdlib.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 __attribute__((constructor))
 static void __theprog_init_stdio(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 }
+
+#ifdef __cplusplus
+// Stubs para exceções em WebAssembly WASI (evitam erro de símbolo indefinido no wasm-ld)
+void* __cxa_allocate_exception(size_t size) throw() {
+    return malloc(size);
+}
+void __cxa_free_exception(void* ptr) throw() {
+    free(ptr);
+}
+void __cxa_throw(void* ptr, void* tinfo, void (*dest)(void*)) {
+    fprintf(stderr, "\\n\\x1b[31m[Exceção C++ não capturada disparada pelo programa]\\x1b[0m\\n");
+    exit(1);
+}
+}
+#endif
 
 #endif
 `;
@@ -55,12 +73,120 @@ export function getCompilerProgress(): CompilerProgress {
   return currentProgress;
 }
 
+// Web Worker dedicado de compilação Clang
+let activeCompilerWorker: Worker | null = null;
+let pendingCompileResolve: ((value: Uint8Array | null) => void) | null = null;
+let currentCompileOutput: ((text: string) => void) | null = null;
+let currentCompileId: string = '';
+
+function getCompilerWorker(): Worker {
+  if (!activeCompilerWorker) {
+    activeCompilerWorker = new Worker(
+      new URL('../workers/compilerWorker.ts', import.meta.url),
+      { type: 'module' }
+    );
+
+    activeCompilerWorker.onmessage = (event: MessageEvent) => {
+      const msg = event.data;
+
+      if (msg.type === 'preload_progress') {
+        currentProgress = {
+          status: msg.percent >= 100 ? 'ready' : 'preloading',
+          percent: msg.percent,
+          doneBytes: msg.doneBytes,
+          totalBytes: msg.totalBytes,
+        };
+        notifyProgress();
+        return;
+      }
+
+      if (msg.type === 'preload_done') {
+        currentProgress = {
+          status: 'ready',
+          percent: 100,
+          doneBytes: currentProgress.totalBytes || 105241285,
+          totalBytes: currentProgress.totalBytes || 105241285,
+        };
+        notifyProgress();
+        return;
+      }
+
+      if (msg.type === 'preload_error') {
+        currentProgress = {
+          status: 'error',
+          percent: 0,
+          doneBytes: 0,
+          totalBytes: 0,
+          error: msg.error,
+        };
+        notifyProgress();
+        return;
+      }
+
+      // Mensagens de compilação
+      if (msg.id && msg.id !== currentCompileId) return;
+
+      if (msg.type === 'stdout' || msg.type === 'stderr') {
+        if (currentCompileOutput) {
+          currentCompileOutput(msg.text.replace(/\r?\n/g, '\r\n'));
+        }
+      } else if (msg.type === 'compile_success') {
+        if (pendingCompileResolve) {
+          const res = pendingCompileResolve;
+          pendingCompileResolve = null;
+          res(msg.wasmBinary);
+        }
+      } else if (msg.type === 'compile_failed' || msg.type === 'compile_error') {
+        if (msg.error && currentCompileOutput) {
+          currentCompileOutput(`\r\n\x1b[31m${msg.error}\x1b[0m\r\n`);
+        }
+        if (pendingCompileResolve) {
+          const res = pendingCompileResolve;
+          pendingCompileResolve = null;
+          res(null);
+        }
+      }
+    };
+
+    activeCompilerWorker.onerror = (err) => {
+      console.error('Erro no compilerWorker:', err);
+      if (currentCompileOutput) {
+        currentCompileOutput(`\r\n\x1b[31m[Erro no processo de compilação em background: ${err?.message || err}]\x1b[0m\r\n`);
+      }
+      if (pendingCompileResolve) {
+        const res = pendingCompileResolve;
+        pendingCompileResolve = null;
+        res(null);
+      }
+    };
+  }
+  return activeCompilerWorker;
+}
+
+/**
+ * Interrompe o processo de compilação imediatamente terminando o Web Worker.
+ */
+export function terminateCompilerWorker(): void {
+  if (pendingCompileResolve) {
+    const res = pendingCompileResolve;
+    pendingCompileResolve = null;
+    res(null);
+  }
+  currentCompileOutput = null;
+  currentCompileId = '';
+
+  if (activeCompilerWorker) {
+    try {
+      activeCompilerWorker.terminate();
+    } catch {}
+    activeCompilerWorker = null;
+  }
+}
+
 let preloadPromise: Promise<void> | null = null;
 
 /**
- * Pré-carrega o LLVM Clang WebAssembly e a biblioteca padrão C/C++ em segundo plano.
- * Ao ser chamado no boot da aplicação, o usuário encontra o compilador 100% pronto
- * na memória para compilar qualquer código instantaneamente no clique de "Executar".
+ * Pré-carrega o LLVM Clang WebAssembly e a biblioteca padrão C/C++ em segundo plano (em Web Worker).
  */
 export function preloadCompiler(): Promise<void> {
   if (currentProgress.status === 'ready') {
@@ -77,55 +203,85 @@ export function preloadCompiler(): Promise<void> {
   };
   notifyProgress();
 
-  preloadPromise = (async () => {
-    try {
-      // Chamar clang com args = undefined aciona o pré-carregamento de recursos do runtime sem compilar arquivo
-      await commands.clang(undefined, {}, {
-        fetchProgress: ({ doneLength, totalLength }: { doneLength: number; totalLength: number }) => {
-          const percent = totalLength > 0 ? Math.min(100, Math.round((doneLength / totalLength) * 100)) : 0;
-          currentProgress = {
-            status: percent >= 100 ? 'ready' : 'preloading',
-            percent,
-            doneBytes: doneLength,
-            totalBytes: totalLength,
-          };
-          notifyProgress();
-        },
-      });
+  preloadPromise = new Promise<void>((resolve, reject) => {
+    const worker = getCompilerWorker();
 
-      currentProgress = {
-        status: 'ready',
-        percent: 100,
-        doneBytes: currentProgress.totalBytes || 105241285,
-        totalBytes: currentProgress.totalBytes || 105241285,
-      };
-      notifyProgress();
-    } catch (err: any) {
-      console.warn('Falha no pré-carregamento do Clang:', err);
-      currentProgress = {
-        ...currentProgress,
-        status: 'error',
-        error: err?.message || String(err),
-      };
-      notifyProgress();
-      preloadPromise = null;
-      throw err;
-    }
-  })();
+    const unsubscribe = subscribeCompilerProgress((prog) => {
+      if (prog.status === 'ready') {
+        unsubscribe();
+        resolve();
+      } else if (prog.status === 'error') {
+        unsubscribe();
+        preloadPromise = null;
+        reject(new Error(prog.error || 'Falha no pré-carregamento'));
+      }
+    });
+
+    worker.postMessage({ type: 'preload' });
+  });
 
   return preloadPromise;
 }
 
+// Cache em memória de binários compilados (Zero-Delay Re-run)
+const compilationCache = new Map<string, { wasmBinary: Uint8Array; timestamp: number }>();
+
+function computeCompilationHash(
+  sources: string[],
+  allFiles: Map<string, string>,
+  extraArgs: string[]
+): string {
+  let str = extraArgs.join(' ') + '||';
+  sources.forEach((s) => {
+    str += `${s}:${allFiles.get(s) || ''}||`;
+  });
+  allFiles.forEach((content, name) => {
+    if (name.endsWith('.h') || name.endsWith('.hpp')) {
+      str += `${name}:${content}||`;
+    }
+  });
+
+  let hash = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+
+export function clearCompilationCache(): void {
+  compilationCache.clear();
+}
+
+export interface CompileResult {
+  wasmBinary: Uint8Array | null;
+  wasCached: boolean;
+}
+
+/**
+ * Compila o código C ou C++ em segundo plano utilizando um Web Worker dedicado.
+ * A thread principal da interface (UI) NUNCA é congelada.
+ */
 export async function compileC(
   sources: string[],
   allFiles: Map<string, string>,
   outputBinaryName: string = 'main',
   onOutput: (text: string) => void,
   extraArgs: string[] = []
-): Promise<Uint8Array | null> {
-  // Se ainda estiver pré-carregando quando o usuário clicou em Executar, exibe feedback visual amigável
+): Promise<CompileResult> {
+  // 1. Verificação de Cache: se o código não mudou desde a última compilação bem-sucedida, retorna em 0ms
+  const cacheKey = computeCompilationHash(sources, allFiles, extraArgs);
+  const cached = compilationCache.get(cacheKey);
+  if (cached && cached.wasmBinary) {
+    return {
+      wasmBinary: cached.wasmBinary.slice(),
+      wasCached: true,
+    };
+  }
+
+  // 2. Se o compilador ainda estiver inicializando seus arquivos base:
   if (currentProgress.status !== 'ready') {
-    onOutput('\x1b[36m[TheProg] Inicializando compilador C/C++ WebAssembly...\x1b[0m\r\n');
+    onOutput('\x1b[36m[TheProg] Inicializando compilador C/C++ WebAssembly em background...\x1b[0m\r\n');
     let lastReported = -1;
     const unsubscribe = subscribeCompilerProgress((prog) => {
       if (prog.status === 'preloading' && prog.percent !== lastReported) {
@@ -141,12 +297,13 @@ export async function compileC(
       onOutput('\r\x1b[K\x1b[32mCompilador pronto!\x1b[0m\r\n');
     } catch (preloadErr: any) {
       onOutput(`\r\x1b[K\x1b[31mErro ao inicializar compilador: ${preloadErr?.message || preloadErr}\x1b[0m\r\n`);
-      return null;
+      return { wasmBinary: null, wasCached: false };
     } finally {
       unsubscribe();
     }
   }
 
+  // 3. Monta o VFS com o runtime header do TheProg
   const vfs: Record<string, string> = {
     '__theprog_runtime.h': THEPROG_RUNTIME_HEADER,
   };
@@ -154,66 +311,42 @@ export async function compileC(
     vfs[name] = content;
   });
 
-  let compilerStderr = '';
-  let compilerStdout = '';
+  const isCpp = sources.some((s) => {
+    const lower = s.toLowerCase();
+    return lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx') || lower.endsWith('.hpp');
+  });
 
-  const stdoutDecoder = new TextDecoder('utf-8');
-  const stderrDecoder = new TextDecoder('utf-8');
+  const compileId = 'compile-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+  currentCompileId = compileId;
+  currentCompileOutput = onOutput;
 
-  const options = {
-    stdout: (bytes: Uint8Array | null) => {
-      if (bytes) {
-        const text = stdoutDecoder.decode(bytes, { stream: true });
-        if (text) {
-          compilerStdout += text;
-          onOutput(text.replace(/\r?\n/g, '\r\n'));
-        }
+  const worker = getCompilerWorker();
+
+  return new Promise<CompileResult>((resolve) => {
+    pendingCompileResolve = (wasmBinary) => {
+      if (wasmBinary) {
+        // Armazena no cache para execuções subsequentes imediatas
+        compilationCache.set(cacheKey, {
+          wasmBinary: wasmBinary.slice(),
+          timestamp: Date.now(),
+        });
+        resolve({ wasmBinary, wasCached: false });
+      } else {
+        resolve({ wasmBinary: null, wasCached: false });
       }
-    },
-    stderr: (bytes: Uint8Array | null) => {
-      if (bytes) {
-        const text = stderrDecoder.decode(bytes, { stream: true });
-        if (text) {
-          compilerStderr += text;
-          onOutput(text.replace(/\r?\n/g, '\r\n'));
-        }
-      }
-    },
-    // Suprime o console.log bruto do YoWASP no console
-    fetchProgress: () => {},
-  };
+    };
 
-  try {
-    const wasmOutName = outputBinaryName.endsWith('.wasm') ? outputBinaryName : `${outputBinaryName}.wasm`;
-    const cleanExtraArgs = extraArgs.map((a) => a.trim()).filter(Boolean);
-    const args = ['-include', '__theprog_runtime.h', ...cleanExtraArgs, ...sources, '-o', wasmOutName];
-
-    // Detecta se algum dos arquivos de entrada é C++ para vincular a libstdc++ corretamente
-    const isCpp = sources.some((s) => {
-      const lower = s.toLowerCase();
-      return lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx');
+    worker.postMessage({
+      type: 'compile',
+      id: compileId,
+      sources,
+      vfs,
+      isCpp,
+      extraArgs,
+      outputBinaryName,
     });
-
-    const compileCommand = isCpp ? commands['clang++'] : commands.clang;
-    const resultFiles = await compileCommand(args, vfs, options);
-    const wasmBinary = resultFiles ? (resultFiles[wasmOutName] as Uint8Array | undefined) : undefined;
-
-    if (!wasmBinary) {
-      if (!compilerStderr) {
-        onOutput('\r\n\x1b[31merror: Falha na compilação.\x1b[0m\r\n');
-      }
-      return null;
-    }
-
-    return wasmBinary;
-  } catch (err: any) {
-    if (!compilerStderr) {
-      onOutput(`\r\n\x1b[31m${err?.message || err}\x1b[0m\r\n`);
-    }
-    return null;
-  }
+  });
 }
-
 
 export interface ExecutionCallbacks {
   onOutput: (text: string) => void;
@@ -319,14 +452,13 @@ export async function executeWasmBinary(
   });
 }
 
-
 export async function compileAndExecuteC(
   sources: string[],
   allFiles: Map<string, string>,
   onOutput: (text: string) => void,
   binaryName: string = 'main'
 ): Promise<boolean> {
-  const wasmBinary = await compileC(sources, allFiles, binaryName, onOutput);
+  const { wasmBinary } = await compileC(sources, allFiles, binaryName, onOutput);
   if (!wasmBinary) return false;
   const exitCode = await executeWasmBinary(binaryName, wasmBinary, onOutput);
   return exitCode === 0;

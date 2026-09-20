@@ -6,11 +6,15 @@ import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
 
 import { formatCode } from '../../utils/formatter';
+import { setWorkspaceFilesProvider } from '../../services/monaco/cLanguageService';
 
-const getMonacoLanguage = (lang: string): string => {
+const getMonacoLanguage = (lang: string, fileName?: string): string => {
+  const name = (fileName || '').toLowerCase();
+  if (name.endsWith('.c')) return 'c';
+  if (name.endsWith('.cpp') || name.endsWith('.cc') || name.endsWith('.cxx') || name.endsWith('.hpp')) return 'cpp';
   switch (lang) {
     case 'c': return 'c';
-    case 'cpp':
+    case 'cpp': return 'cpp';
     case 'h': return 'cpp';
     default: return 'plaintext';
   }
@@ -21,6 +25,7 @@ export const EditorArea: React.FC = () => {
     tabs,
     activeFileId,
     activeFile,
+    files,
     openFile,
     closeTab,
     reorderTabs,
@@ -37,6 +42,12 @@ export const EditorArea: React.FC = () => {
   const { theme } = useTheme();
   const { showPrompt } = useDialog();
   const editorRef = useRef<any>(null);
+
+  // Sincroniza os arquivos do Workspace com o Language Service para resolução de #include "..."
+  useEffect(() => {
+    setWorkspaceFilesProvider(() => files);
+    return () => setWorkspaceFilesProvider(null);
+  }, [files]);
 
   // Estados de Drag and Drop de Abas
   const [draggedTabIndex, setDraggedTabIndex] = useState<number | null>(null);
@@ -161,6 +172,11 @@ export const EditorArea: React.FC = () => {
       handleRun();
     });
 
+    // Atalho explícito Ctrl+Space para disparar sugestões e autocompletion
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
+      editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+    });
+
     // Atalho Ctrl+S para salvar
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       saveActiveFileRef.current();
@@ -210,7 +226,7 @@ export const EditorArea: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const monacoLanguage = activeFile ? getMonacoLanguage(activeFile.language) : 'plaintext';
+  const monacoLanguage = activeFile ? getMonacoLanguage(activeFile.language, activeFile.name) : 'plaintext';
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#1e1e1e] transition-colors relative">
@@ -346,6 +362,7 @@ export const EditorArea: React.FC = () => {
         <div className="flex-1 w-full h-full relative">
           <Editor
             height="100%"
+            path={activeFile.path || activeFile.name}
             language={monacoLanguage}
             theme={theme === 'dark' ? 'vs-dark' : 'light'}
             value={activeFile.content || ''}
@@ -371,6 +388,25 @@ export const EditorArea: React.FC = () => {
               lineNumbers: 'on',
               renderWhitespace: 'selection',
               fixedOverflowWidgets: true,
+              quickSuggestions: { other: true, comments: false, strings: false },
+              suggestOnTriggerCharacters: true,
+              acceptSuggestionOnEnter: 'on',
+              tabCompletion: 'on',
+              suggestSelection: 'first',
+              wordBasedSuggestions: 'matchingDocuments',
+              parameterHints: { enabled: true, cycle: true },
+              suggest: {
+                snippetsPreventQuickSuggestions: false,
+                showWords: true,
+                showVariables: true,
+                showFunctions: true,
+                showConstants: true,
+                showStructs: true,
+                showKeywords: true,
+                showSnippets: true,
+                showModules: true,
+                showFields: true,
+              },
             }}
             loading={
               <div className="flex items-center justify-center h-full text-xs text-[#888888]">

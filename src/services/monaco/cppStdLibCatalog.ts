@@ -1,0 +1,597 @@
+import type { CStdSymbol } from './cStdLibCatalog';
+
+export const CPP_KEYWORDS: CStdSymbol[] = [
+  { name: 'class', kind: 'keyword', description: 'Define uma classe com encapsulamento orientado a objetos (membros privados por padrão).' },
+  { name: 'public', kind: 'keyword', description: 'Modificador de acesso público: membros acessíveis de qualquer lugar.' },
+  { name: 'private', kind: 'keyword', description: 'Modificador de acesso privado: membros acessíveis apenas dentro da própria classe.' },
+  { name: 'protected', kind: 'keyword', description: 'Modificador de acesso protegido: membros acessíveis na classe e suas subclasses.' },
+  { name: 'virtual', kind: 'keyword', description: 'Declara método virtual para permitir polimorfismo dinâmico e sobrescrita em subclasses.' },
+  { name: 'override', kind: 'keyword', description: 'Garante que o método virtual está sobrescrevendo um método da classe base.' },
+  { name: 'final', kind: 'keyword', description: 'Impede que uma classe seja herdada ou que um método virtual seja sobrescrito.' },
+  { name: 'template', kind: 'keyword', description: 'Define um modelo genérico de classe ou função (metaprogramação e templates).' },
+  { name: 'typename', kind: 'keyword', description: 'Especifica que um identificador dependente de template é um tipo de dado.' },
+  { name: 'namespace', kind: 'keyword', description: 'Define um espaço de nomes para organizar código e evitar conflitos de nomes.' },
+  { name: 'using', kind: 'keyword', description: 'Importa símbolos de um namespace (ex: using namespace std;) ou cria apelidos de tipo.' },
+  { name: 'new', kind: 'keyword', description: 'Operador de alocação dinâmica de memória que chama automaticamente o construtor.' },
+  { name: 'delete', kind: 'keyword', description: 'Operador de liberação de memória dinâmica que chama automaticamente o destrutor.' },
+  { name: 'this', kind: 'keyword', description: 'Ponteiro para a instância do objeto atual dentro de métodos de classe.' },
+  { name: 'friend', kind: 'keyword', description: 'Concede acesso aos membros privados e protegidos a uma função ou outra classe.' },
+  { name: 'operator', kind: 'keyword', description: 'Declara uma sobrecarga de operador para uma classe.' },
+  { name: 'try', kind: 'keyword', description: 'Inicia um bloco de código protegido sujeito ao tratamento de exceções.' },
+  { name: 'catch', kind: 'keyword', description: 'Captura e trata exceções lançadas pelo bloco try.' },
+  { name: 'throw', kind: 'keyword', description: 'Dispara uma exceção para ser capturada por um bloco try-catch.' },
+  { name: 'noexcept', kind: 'keyword', description: 'Especifica se uma função pode ou não disparar exceções.' },
+  { name: 'static_cast', kind: 'keyword', description: 'Conversão explícita segura de tipos em tempo de compilação.' },
+  { name: 'dynamic_cast', kind: 'keyword', description: 'Conversão segura de ponteiros/referências em tempo de execução para classes polimórficas.' },
+  { name: 'reinterpret_cast', kind: 'keyword', description: 'Conversão de baixo nível entre tipos não relacionados ou ponteiros.' },
+  { name: 'const_cast', kind: 'keyword', description: 'Adiciona ou remove o qualificador const de um tipo.' },
+  { name: 'auto', kind: 'keyword', description: 'Deduz automaticamente o tipo da variável a partir de sua expressão inicializadora.' },
+  { name: 'decltype', kind: 'keyword', description: 'Extrai o tipo exato de uma expressão em tempo de compilação.' },
+  { name: 'nullptr', kind: 'keyword', description: 'Ponteiro nulo seguro em C++11 (substitui o antigo NULL).' },
+  { name: 'constexpr', kind: 'keyword', description: 'Especifica que o valor ou função pode ser avaliado em tempo de compilação.' },
+  { name: 'consteval', kind: 'keyword', description: 'Especifica que a função deve obrigatoriamente ser avaliada em tempo de compilação (C++20).' },
+  { name: 'explicit', kind: 'keyword', description: 'Evita que o construtor ou operador de conversão seja chamado implicitamente.' },
+  { name: 'mutable', kind: 'keyword', description: 'Permite que um membro de classe seja modificado mesmo dentro de métodos const.' },
+  { name: 'concept', kind: 'keyword', description: 'Define restrições nomeadas sobre argumentos de template (C++20).' },
+  { name: 'requires', kind: 'keyword', description: 'Especifica restrições sobre argumentos de template ou funções (C++20).' },
+  { name: 'bool', kind: 'keyword', description: 'Tipo primitivo booleano nativo de C++ (true ou false).' },
+  { name: 'true', kind: 'keyword', description: 'Literal booleano verdadeiro.' },
+  { name: 'false', kind: 'keyword', description: 'Literal booleano falso.' },
+];
+
+export const CPP_STANDARD_HEADERS: CStdSymbol[] = [
+  { name: 'iostream', kind: 'header', description: 'Entrada e saída de fluxos em C++ (std::cout, std::cin, std::endl, std::cerr).' },
+  { name: 'vector', kind: 'header', description: 'Array dinâmico contíguo na memória da STL (std::vector).' },
+  { name: 'string', kind: 'header', description: 'Classe de manipulação de cadeias de caracteres de alto nível (std::string).' },
+  { name: 'algorithm', kind: 'header', description: 'Algoritmos genéricos da STL (std::sort, std::find, std::max, std::min, std::reverse).' },
+  { name: 'memory', kind: 'header', description: 'Ponteiros inteligentes e gerenciamento de memória (std::unique_ptr, std::shared_ptr, std::make_unique).' },
+  { name: 'map', kind: 'header', description: 'Contêiner associativo ordenado chave-valor baseado em árvore rubro-negra (std::map).' },
+  { name: 'unordered_map', kind: 'header', description: 'Tabela hash chave-valor com complexidade média O(1) (std::unordered_map).' },
+  { name: 'set', kind: 'header', description: 'Conjunto de elementos únicos ordenados (std::set).' },
+  { name: 'unordered_set', kind: 'header', description: 'Conjunto de elementos únicos com busca em tabela hash (std::unordered_set).' },
+  { name: 'utility', kind: 'header', description: 'Tipos utilitários gerais (std::pair, std::make_pair, std::move, std::forward).' },
+  { name: 'fstream', kind: 'header', description: 'Manipulação de fluxos de arquivos em C++ (std::ifstream, std::ofstream, std::fstream).' },
+  { name: 'sstream', kind: 'header', description: 'Fluxos de entrada e saída baseados em strings (std::stringstream).' },
+  { name: 'iomanip', kind: 'header', description: 'Manipuladores de formatação de fluxo (std::setw, std::setprecision, std::fixed).' },
+  { name: 'queue', kind: 'header', description: 'Fila FIFO (std::queue) e fila de prioridade heap (std::priority_queue).' },
+  { name: 'stack', kind: 'header', description: 'Pilha LIFO (std::stack).' },
+  { name: 'deque', kind: 'header', description: 'Fila de extremidade dupla com inserção/remoção rápida no início e fim (std::deque).' },
+  { name: 'array', kind: 'header', description: 'Contêiner de array com tamanho fixo seguro na stack (std::array).' },
+  { name: 'optional', kind: 'header', description: 'Tipo que pode ou não conter um valor válido (std::optional) (C++17).' },
+  { name: 'variant', kind: 'header', description: 'Union segura com verificação de tipo em tempo de execução (std::variant) (C++17).' },
+  { name: 'tuple', kind: 'header', description: 'Coleção de tamanho fixo com elementos de tipos heterogêneos (std::tuple).' },
+  { name: 'chrono', kind: 'header', description: 'Biblioteca de tempo, relógio e medição de intervalos de precisão (std::chrono).' },
+  { name: 'functional', kind: 'header', description: 'Objetos de função, invólucros polimórficos e std::function.' },
+  { name: 'cmath', kind: 'header', description: 'Versão C++ do cabeçalho de funções matemáticas <math.h> dentro do namespace std.' },
+  { name: 'cstdio', kind: 'header', description: 'Versão C++ de entrada e saída padrão C <stdio.h> no namespace std.' },
+  { name: 'cstdlib', kind: 'header', description: 'Versão C++ de utilidades gerais C <stdlib.h> no namespace std.' },
+  { name: 'cstring', kind: 'header', description: 'Versão C++ de manipulação de strings C <string.h> no namespace std.' },
+  { name: 'numeric', kind: 'header', description: 'Operações numéricas generalizadas (std::accumulate, std::iota, std::reduce).' },
+  { name: 'stdexcept', kind: 'header', description: 'Classes padrão de exceções (std::runtime_error, std::invalid_argument, std::out_of_range).' },
+  { name: 'cassert', kind: 'header', description: 'Macros de asserção em tempo de desenvolvimento (assert).' },
+  { name: 'cctype', kind: 'header', description: 'Funções de classificação e conversão de caracteres (isalpha, isdigit, tolower, toupper).' },
+];
+
+export const CPP_STDLIB_SYMBOLS: CStdSymbol[] = [
+  // --- iostream ---
+  {
+    name: 'cout',
+    kind: 'constant',
+    header: 'iostream',
+    signature: 'std::ostream cout',
+    description: 'Fluxo padrão de saída (tela / terminal) em C++.\nExemplo: `std::cout << "Olá mundo!" << std::endl;`',
+  },
+  {
+    name: 'cin',
+    kind: 'constant',
+    header: 'iostream',
+    signature: 'std::istream cin',
+    description: 'Fluxo padrão de entrada (teclado) em C++.\nExemplo: `std::cin >> valor;`',
+  },
+  {
+    name: 'endl',
+    kind: 'function',
+    header: 'iostream',
+    signature: 'std::ostream& endl(std::ostream& os)',
+    description: 'Insere uma quebra de linha (\\n) no fluxo de saída e descarrega o buffer (flush).',
+  },
+  {
+    name: 'cerr',
+    kind: 'constant',
+    header: 'iostream',
+    signature: 'std::ostream cerr',
+    description: 'Fluxo padrão de mensagens de erro (não bufferizado).',
+  },
+
+  // --- vector ---
+  {
+    name: 'vector',
+    kind: 'type',
+    header: 'vector',
+    signature: 'template <typename T> class vector;',
+    description: 'Array dinâmico contíguo na heap com redimensionamento automático.\nExemplo: `std::vector<int> v = {1, 2, 3};`',
+  },
+
+  // --- string ---
+  {
+    name: 'string',
+    kind: 'type',
+    header: 'string',
+    signature: 'class string;',
+    description: 'Cadeia de caracteres de alto nível com gerenciamento automático de memória.\nExemplo: `std::string nome = "TheProg";`',
+  },
+  {
+    name: 'to_string',
+    kind: 'function',
+    header: 'string',
+    signature: 'std::string to_string(int val)',
+    description: 'Converte um valor numérico primitivo (int, float, double) em um objeto std::string.',
+  },
+
+  // --- algorithm ---
+  {
+    name: 'sort',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'void sort(RandomIt first, RandomIt last)',
+    description: 'Ordena os elementos no intervalo [first, last) em ordem crescente.\nExemplo: `std::sort(v.begin(), v.end());`',
+  },
+  {
+    name: 'reverse',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'void reverse(BidirIt first, BidirIt last)',
+    description: 'Inverte a ordem dos elementos no intervalo [first, last).',
+  },
+  {
+    name: 'find',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'InputIt find(InputIt first, InputIt last, const T& value)',
+    description: 'Localiza a primeira ocorrência de value no intervalo [first, last).',
+  },
+  {
+    name: 'max',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'const T& max(const T& a, const T& b)',
+    description: 'Retorna o maior entre dois valores.',
+  },
+  {
+    name: 'min',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'const T& min(const T& a, const T& b)',
+    description: 'Retorna o menor entre dois valores.',
+  },
+  {
+    name: 'swap',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'void swap(T& a, T& b)',
+    description: 'Troca os valores entre a e b eficientemente usando semântica de movimento.',
+  },
+
+  // --- memory ---
+  {
+    name: 'unique_ptr',
+    kind: 'type',
+    header: 'memory',
+    signature: 'template <typename T> class unique_ptr;',
+    description: 'Ponteiro inteligente com posse exclusiva do recurso (sem sobrecarga de contagem de referências).',
+  },
+  {
+    name: 'shared_ptr',
+    kind: 'type',
+    header: 'memory',
+    signature: 'template <typename T> class shared_ptr;',
+    description: 'Ponteiro inteligente com compartilhamento de posse e contagem de referências.',
+  },
+  {
+    name: 'make_unique',
+    kind: 'function',
+    header: 'memory',
+    signature: 'std::unique_ptr<T> make_unique(Args&&... args)',
+    description: 'Cria com segurança de exceções uma instância e a encapsula em um std::unique_ptr (C++14).',
+  },
+  {
+    name: 'make_shared',
+    kind: 'function',
+    header: 'memory',
+    signature: 'std::shared_ptr<T> make_shared(Args&&... args)',
+    description: 'Aloca a contagem de referências e o objeto em um único bloco contínuo de memória.',
+  },
+
+  // --- map / unordered_map ---
+  {
+    name: 'map',
+    kind: 'type',
+    header: 'map',
+    signature: 'template <typename Key, typename T> class map;',
+    description: 'Tabela associativa de chave-valor ordenada por chave (árvore binária balanceada).',
+  },
+  {
+    name: 'unordered_map',
+    kind: 'type',
+    header: 'unordered_map',
+    signature: 'template <typename Key, typename T> class unordered_map;',
+    description: 'Tabela hash de chave-valor com complexidade média constante O(1).',
+  },
+
+  // --- set ---
+  {
+    name: 'set',
+    kind: 'type',
+    header: 'set',
+    signature: 'template <typename Key> class set;',
+    description: 'Conjunto de elementos únicos mantidos sempre em ordem crescente.',
+  },
+
+  // --- utility ---
+  {
+    name: 'pair',
+    kind: 'type',
+    header: 'utility',
+    signature: 'template <typename T1, typename T2> struct pair;',
+    description: 'Estrutura que acopla dois valores heterogêneos (first e second).',
+  },
+  {
+    name: 'make_pair',
+    kind: 'function',
+    header: 'utility',
+    signature: 'std::pair<V1, V2> make_pair(T1&& t, T2&& u)',
+    description: 'Constrói um objeto std::pair deduzindo os tipos automaticamente.',
+  },
+  {
+    name: 'move',
+    kind: 'function',
+    header: 'utility',
+    signature: 'typename std::remove_reference<T>::type&& move(T&& t)',
+    description: 'Converte uma lvalue em rvalue para habilitar a semântica de movimento e evitar cópias caras.',
+  },
+
+  // --- fstream ---
+  {
+    name: 'ifstream',
+    kind: 'type',
+    header: 'fstream',
+    signature: 'class ifstream;',
+    description: 'Fluxo de arquivo especializado em leitura de dados.',
+  },
+  {
+    name: 'ofstream',
+    kind: 'type',
+    header: 'fstream',
+    signature: 'class ofstream;',
+    description: 'Fluxo de arquivo especializado em escrita de dados.',
+  },
+  {
+    name: 'fstream',
+    kind: 'type',
+    header: 'fstream',
+    signature: 'class fstream;',
+    description: 'Fluxo de arquivo que permite tanto leitura quanto escrita.',
+  },
+
+  // --- sstream ---
+  {
+    name: 'stringstream',
+    kind: 'type',
+    header: 'sstream',
+    signature: 'class stringstream;',
+    description: 'Fluxo de entrada e saída que opera diretamente em strings na memória.',
+  },
+
+  // --- queue / stack / deque / array ---
+  {
+    name: 'queue',
+    kind: 'type',
+    header: 'queue',
+    signature: 'template <typename T> class queue;',
+    description: 'Estrutura de dados de fila FIFO (First-In, First-Out).',
+  },
+  {
+    name: 'priority_queue',
+    kind: 'type',
+    header: 'queue',
+    signature: 'template <typename T> class priority_queue;',
+    description: 'Fila de prioridade implementada como heap max/min.',
+  },
+  {
+    name: 'stack',
+    kind: 'type',
+    header: 'stack',
+    signature: 'template <typename T> class stack;',
+    description: 'Estrutura de dados de pilha LIFO (Last-In, First-Out).',
+  },
+  {
+    name: 'deque',
+    kind: 'type',
+    header: 'deque',
+    signature: 'template <typename T> class deque;',
+    description: 'Fila de terminação dupla com inserção rápida no início e no final.',
+  },
+  {
+    name: 'array',
+    kind: 'type',
+    header: 'array',
+    signature: 'template <typename T, size_t N> class array;',
+    description: 'Contêiner de array de tamanho fixo em tempo de compilação.',
+  },
+
+  // --- numeric ---
+  {
+    name: 'accumulate',
+    kind: 'function',
+    header: 'numeric',
+    signature: 'T accumulate(InputIt first, InputIt last, T init)',
+    description: 'Soma todos os elementos no intervalo [first, last) com o valor inicial init.',
+  },
+  {
+    name: 'iota',
+    kind: 'function',
+    header: 'numeric',
+    signature: 'void iota(ForwardIt first, ForwardIt last, T value)',
+    description: 'Preenche o intervalo com valores sequenciais crescentes a partir de value.',
+  },
+
+  // --- algorithm (extras) ---
+  {
+    name: 'binary_search',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'bool binary_search(ForwardIt first, ForwardIt last, const T& value)',
+    description: 'Verifica se o valor está presente no intervalo ordenado [first, last) com O(log N).',
+  },
+  {
+    name: 'lower_bound',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'ForwardIt lower_bound(ForwardIt first, ForwardIt last, const T& value)',
+    description: 'Retorna um iterador para o primeiro elemento que não seja menor que value.',
+  },
+  {
+    name: 'upper_bound',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'ForwardIt upper_bound(ForwardIt first, ForwardIt last, const T& value)',
+    description: 'Retorna um iterador para o primeiro elemento que seja maior que value.',
+  },
+  {
+    name: 'min_element',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'ForwardIt min_element(ForwardIt first, ForwardIt last)',
+    description: 'Encontra o menor elemento no intervalo.',
+  },
+  {
+    name: 'max_element',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'ForwardIt max_element(ForwardIt first, ForwardIt last)',
+    description: 'Encontra o maior elemento no intervalo.',
+  },
+  {
+    name: 'count',
+    kind: 'function',
+    header: 'algorithm',
+    signature: 'ptrdiff_t count(InputIt first, InputIt last, const T& value)',
+    description: 'Conta quantas vezes value aparece no intervalo.',
+  },
+
+  // --- tuple ---
+  {
+    name: 'tuple',
+    kind: 'type',
+    header: 'tuple',
+    signature: 'template <typename... Types> class tuple;',
+    description: 'Contêiner de tamanho fixo com elementos de tipos heterogêneos.',
+  },
+  {
+    name: 'make_tuple',
+    kind: 'function',
+    header: 'tuple',
+    signature: 'std::tuple<VTypes...> make_tuple(Args&&... args)',
+    description: 'Cria uma tupla deduzindo os tipos a partir dos argumentos.',
+  },
+
+  // --- optional ---
+  {
+    name: 'optional',
+    kind: 'type',
+    header: 'optional',
+    signature: 'template <typename T> class optional;',
+    description: 'Encapsula um valor opcional que pode ou não existir (C++17).',
+  },
+  {
+    name: 'nullopt',
+    kind: 'constant',
+    header: 'optional',
+    signature: 'inline constexpr nullopt_t nullopt;',
+    description: 'Constante que indica a ausência de valor em um std::optional.',
+  },
+
+  // --- functional ---
+  {
+    name: 'function',
+    kind: 'type',
+    header: 'functional',
+    signature: 'template <typename R, typename... Args> class function<R(Args...)>;',
+    description: 'Invólucro polimórfico de função (funções livres, lambdas, métodos).',
+  },
+
+  // --- iomanip ---
+  {
+    name: 'setw',
+    kind: 'function',
+    header: 'iomanip',
+    signature: '/*unspecified*/ setw(int n)',
+    description: 'Define a largura de exibição do próximo campo impresso no fluxo.',
+  },
+  {
+    name: 'setprecision',
+    kind: 'function',
+    header: 'iomanip',
+    signature: '/*unspecified*/ setprecision(int n)',
+    description: 'Define o número de dígitos de precisão para números de ponto flutuante.',
+  },
+  {
+    name: 'fixed',
+    kind: 'function',
+    header: 'iomanip',
+    signature: 'std::ios_base& fixed(std::ios_base& str)',
+    description: 'Formata ponto flutuante em notação fixa decimal.',
+  },
+
+  // --- stdexcept ---
+  {
+    name: 'runtime_error',
+    kind: 'type',
+    header: 'stdexcept',
+    signature: 'class runtime_error : public exception;',
+    description: 'Exceção lançada para erros detectáveis apenas em tempo de execução.',
+  },
+  {
+    name: 'invalid_argument',
+    kind: 'type',
+    header: 'stdexcept',
+    signature: 'class invalid_argument : public logic_error;',
+    description: 'Exceção lançada quando um argumento inválido é passado a uma função.',
+  },
+  {
+    name: 'out_of_range',
+    kind: 'type',
+    header: 'stdexcept',
+    signature: 'class out_of_range : public logic_error;',
+    description: 'Exceção lançada ao tentar acessar elemento fora dos limites de contêiner.',
+  },
+
+  // --- cmath ---
+  {
+    name: 'sqrt',
+    kind: 'function',
+    header: 'cmath',
+    signature: 'double sqrt(double arg)',
+    description: 'Calcula a raiz quadrada de arg.',
+  },
+  {
+    name: 'pow',
+    kind: 'function',
+    header: 'cmath',
+    signature: 'double pow(double base, double exp)',
+    description: 'Calcula base elevada à potência exp.',
+  },
+  {
+    name: 'abs',
+    kind: 'function',
+    header: 'cmath',
+    signature: 'int abs(int n) / double abs(double x)',
+    description: 'Retorna o valor absoluto.',
+  },
+];
+
+/**
+ * Métodos comuns de contêineres STL para autocompletion quando o usuário digita "." ou "->"
+ */
+export const CPP_CONTAINER_METHODS: Record<string, { name: string; type: string; doc: string }[]> = {
+  vector: [
+    { name: 'push_back(val)', type: 'void', doc: 'Insere um novo elemento no final do vector.' },
+    { name: 'pop_back()', type: 'void', doc: 'Remove o último elemento do vector.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna o número de elementos contidos no vector.' },
+    { name: 'empty()', type: 'bool', doc: 'Retorna true se o vector não possui nenhum elemento.' },
+    { name: 'clear()', type: 'void', doc: 'Remove todos os elementos do vector.' },
+    { name: 'begin()', type: 'iterator', doc: 'Retorna um iterador apontando para o primeiro elemento.' },
+    { name: 'end()', type: 'iterator', doc: 'Retorna um iterador para a posição seguinte ao último elemento.' },
+    { name: 'at(index)', type: 'T&', doc: 'Retorna o elemento na posição com verificação de limites (lança out_of_range).' },
+    { name: 'front()', type: 'T&', doc: 'Retorna referência ao primeiro elemento.' },
+    { name: 'back()', type: 'T&', doc: 'Retorna referência ao último elemento.' },
+    { name: 'resize(count)', type: 'void', doc: 'Redimensiona o contêiner para conter count elementos.' },
+    { name: 'insert(pos, val)', type: 'iterator', doc: 'Insere um elemento antes da posição indicada.' },
+    { name: 'erase(pos)', type: 'iterator', doc: 'Remove o elemento na posição indicada.' },
+  ],
+  string: [
+    { name: 'length()', type: 'size_t', doc: 'Retorna o número de caracteres da string.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna o número de caracteres da string.' },
+    { name: 'empty()', type: 'bool', doc: 'Retorna true se a string estiver vazia.' },
+    { name: 'c_str()', type: 'const char*', doc: 'Retorna um ponteiro constante para o array C compatível (terminado em \\0).' },
+    { name: 'substr(pos, len)', type: 'std::string', doc: 'Retorna uma substring a partir de pos com comprimento len.' },
+    { name: 'find(str)', type: 'size_t', doc: 'Busca a primeira ocorrência da substring. Retorna std::string::npos se não encontrar.' },
+    { name: 'append(str)', type: 'std::string&', doc: 'Concatena texto ao final da string.' },
+    { name: 'clear()', type: 'void', doc: 'Limpa o conteúdo da string.' },
+    { name: 'at(index)', type: 'char&', doc: 'Acessa o caractere no índice com verificação de limites.' },
+  ],
+  map: [
+    { name: 'insert({k, v})', type: 'pair<iterator, bool>', doc: 'Insere um par chave-valor no map.' },
+    { name: 'find(key)', type: 'iterator', doc: 'Busca um elemento pela chave. Retorna end() se não encontrar.' },
+    { name: 'count(key)', type: 'size_t', doc: 'Retorna 1 se a chave existir no map, ou 0 caso contrário.' },
+    { name: 'erase(key)', type: 'size_t', doc: 'Remove o elemento correspondente à chave.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna a quantidade de pares no map.' },
+    { name: 'empty()', type: 'bool', doc: 'Verifica se o map está vazio.' },
+    { name: 'clear()', type: 'void', doc: 'Remove todos os elementos do map.' },
+  ],
+  unordered_map: [
+    { name: 'insert({k, v})', type: 'pair<iterator, bool>', doc: 'Insere um par chave-valor no hash map.' },
+    { name: 'find(key)', type: 'iterator', doc: 'Busca um elemento pela chave em O(1) médio.' },
+    { name: 'count(key)', type: 'size_t', doc: 'Retorna 1 se a chave existir, ou 0 caso contrário.' },
+    { name: 'erase(key)', type: 'size_t', doc: 'Remove o elemento correspondente à chave.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna a quantidade de pares.' },
+    { name: 'empty()', type: 'bool', doc: 'Verifica se está vazio.' },
+    { name: 'clear()', type: 'void', doc: 'Remove todos os elementos.' },
+  ],
+  set: [
+    { name: 'insert(val)', type: 'pair<iterator, bool>', doc: 'Insere um elemento no set mantendo a ordenação.' },
+    { name: 'find(val)', type: 'iterator', doc: 'Busca um elemento no set.' },
+    { name: 'count(val)', type: 'size_t', doc: 'Retorna 1 se o valor estiver no set, 0 caso contrário.' },
+    { name: 'erase(val)', type: 'size_t', doc: 'Remove o elemento do set.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna o número de elementos.' },
+    { name: 'empty()', type: 'bool', doc: 'Retorna true se o conjunto estiver vazio.' },
+    { name: 'clear()', type: 'void', doc: 'Remove todos os elementos.' },
+  ],
+  unordered_set: [
+    { name: 'insert(val)', type: 'pair<iterator, bool>', doc: 'Insere um elemento na tabela hash.' },
+    { name: 'find(val)', type: 'iterator', doc: 'Busca um elemento em O(1) médio.' },
+    { name: 'count(val)', type: 'size_t', doc: 'Retorna 1 se o valor estiver no conjunto, 0 caso contrário.' },
+    { name: 'erase(val)', type: 'size_t', doc: 'Remove o elemento.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna o número de elementos.' },
+    { name: 'empty()', type: 'bool', doc: 'Retorna true se estiver vazio.' },
+    { name: 'clear()', type: 'void', doc: 'Remove todos os elementos.' },
+  ],
+  queue: [
+    { name: 'push(val)', type: 'void', doc: 'Insere elemento no final da fila.' },
+    { name: 'pop()', type: 'void', doc: 'Remove o elemento da frente da fila.' },
+    { name: 'front()', type: 'T&', doc: 'Acessa o elemento na frente da fila.' },
+    { name: 'back()', type: 'T&', doc: 'Acessa o elemento no final da fila.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna o número de elementos na fila.' },
+    { name: 'empty()', type: 'bool', doc: 'Verifica se a fila está vazia.' },
+  ],
+  stack: [
+    { name: 'push(val)', type: 'void', doc: 'Insere elemento no topo da pilha.' },
+    { name: 'pop()', type: 'void', doc: 'Remove o elemento do topo da pilha.' },
+    { name: 'top()', type: 'T&', doc: 'Acessa o elemento no topo da pilha.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna o número de elementos na pilha.' },
+    { name: 'empty()', type: 'bool', doc: 'Verifica se a pilha está vazia.' },
+  ],
+  deque: [
+    { name: 'push_back(val)', type: 'void', doc: 'Insere elemento no final.' },
+    { name: 'push_front(val)', type: 'void', doc: 'Insere elemento no início.' },
+    { name: 'pop_back()', type: 'void', doc: 'Remove elemento do final.' },
+    { name: 'pop_front()', type: 'void', doc: 'Remove elemento do início.' },
+    { name: 'front()', type: 'T&', doc: 'Retorna referência ao primeiro elemento.' },
+    { name: 'back()', type: 'T&', doc: 'Retorna referência ao último elemento.' },
+    { name: 'size()', type: 'size_t', doc: 'Retorna a quantidade de elementos.' },
+    { name: 'empty()', type: 'bool', doc: 'Verifica se o deque está vazio.' },
+  ],
+  array: [
+    { name: 'size()', type: 'size_t', doc: 'Retorna o número fixo de elementos do array.' },
+    { name: 'empty()', type: 'bool', doc: 'Verifica se o array tem tamanho zero.' },
+    { name: 'at(index)', type: 'T&', doc: 'Acessa elemento com verificação de limites.' },
+    { name: 'front()', type: 'T&', doc: 'Acessa o primeiro elemento.' },
+    { name: 'back()', type: 'T&', doc: 'Acessa o último elemento.' },
+    { name: 'fill(val)', type: 'void', doc: 'Preenche todos os elementos com val.' },
+  ],
+  stringstream: [
+    { name: 'str()', type: 'std::string', doc: 'Retorna o conteúdo do buffer como uma std::string.' },
+    { name: 'str(s)', type: 'void', doc: 'Define o conteúdo do buffer com a string fornecida.' },
+    { name: 'clear()', type: 'void', doc: 'Limpa os sinalizadores de estado do fluxo (eof, fail, etc.).' },
+  ],
+};

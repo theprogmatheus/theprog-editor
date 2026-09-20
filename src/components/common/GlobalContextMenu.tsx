@@ -118,7 +118,7 @@ export const GlobalContextMenu: React.FC<GlobalContextMenuProps> = ({
         className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
       >
         <Play className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-current" />
-        <span>Executar Código (F5)</span>
+        <span>Compilar & Executar (F5)</span>
       </button>
 
       <button

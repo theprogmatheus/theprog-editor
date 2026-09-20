@@ -39,7 +39,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </div>
             <div className="grid grid-cols-2 gap-2 text-[#555555] dark:text-[#aaaaaa]">
               <div className="flex items-center justify-between p-1.5 rounded bg-white dark:bg-[#252526] border border-[#e0e0e0] dark:border-[#333333]">
-                <span>Executar arquivo</span>
+                <span>Compilar & Executar</span>
                 <kbd className="px-1.5 py-0.5 rounded bg-[#ececec] dark:bg-[#333333] text-black dark:text-white font-mono text-[10px]">F5</kbd>
               </div>
               <div className="flex items-center justify-between p-1.5 rounded bg-white dark:bg-[#252526] border border-[#e0e0e0] dark:border-[#333333]">

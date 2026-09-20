@@ -63,14 +63,15 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
 
       {/* Direita: Ações principais */}
       <div className="flex items-center space-x-2">
-        {/* Botão Dinâmico Executar / Stop (F5 / Kill) - Apenas Ícone */}
+        {/* Botão Dinâmico Compilar & Executar / Interromper (F5 / Kill) */}
         {vmStatus === 'running' ? (
           <button
             onClick={() => stopExecution()}
             title="Interromper Execução (Ctrl+C / Kill)"
-            className="flex items-center justify-center w-7 h-7 rounded font-medium text-white shadow-xs transition-all bg-[#e51400] hover:bg-[#c91000] active:scale-95 cursor-pointer"
+            className="flex items-center space-x-1.5 px-3 h-7 rounded font-semibold text-xs text-white shadow-xs transition-all bg-[#e51400] hover:bg-[#c91000] active:scale-95 cursor-pointer whitespace-nowrap"
           >
             <Square className="w-3.5 h-3.5 fill-current" />
+            <span>Interromper</span>
           </button>
         ) : (
           <button
@@ -79,15 +80,16 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
             title={
               !isSystemReady
                 ? `Aguarde o carregamento do Sistema (${systemProgressPercent}%)... O botão será ativado assim que 100% pronto.`
-                : 'Salvar e Executar Código (F5)'
+                : 'Compilar e Executar Código (F5)'
             }
-            className={`flex items-center justify-center w-7 h-7 rounded font-medium text-white shadow-xs transition-all ${
+            className={`flex items-center space-x-1.5 px-3 h-7 rounded font-semibold text-xs text-white shadow-xs transition-all whitespace-nowrap ${
               !isSystemReady
                 ? 'bg-neutral-400 dark:bg-neutral-600 opacity-50 cursor-not-allowed'
-                : 'bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer'
+                : 'bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer shadow-sm'
             }`}
           >
-            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>Compilar & Executar</span>
           </button>
         )}
 

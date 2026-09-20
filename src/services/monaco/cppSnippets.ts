@@ -1,0 +1,96 @@
+import type { CSnippet } from './cSnippets';
+
+export const CPP_SNIPPETS: CSnippet[] = [
+  {
+    label: 'std::cout com quebra de linha',
+    prefix: 'cout',
+    header: 'iostream',
+    description: 'Imprime no fluxo padrão de saída com std::endl',
+    body: 'std::cout << ${1:valor} << std::endl;${0}',
+  },
+  {
+    label: 'std::cin entrada de dados',
+    prefix: 'cin',
+    header: 'iostream',
+    description: 'Lê dados a partir do fluxo padrão de entrada std::cin',
+    body: 'std::cin >> ${1:variavel};${0}',
+  },
+  {
+    label: 'Declaração de classe C++',
+    prefix: 'class',
+    description: 'Esqueleto completo de classe orientada a objetos com construtor e destrutor',
+    body: 'class ${1:NomeDaClasse} {\npublic:\n\t${1:NomeDaClasse}();\n\t~${1:NomeDaClasse}();\n\nprivate:\n\t${0:/* membros privados */}\n};',
+  },
+  {
+    label: 'Range-based for loop (foreach com auto)',
+    prefix: 'forauto',
+    description: 'Laço moderno para iterar sobre contêineres STL (vector, string, etc.)',
+    body: 'for (const auto &${1:item} : ${2:container}) {\n\t${0}\n}',
+  },
+  {
+    label: 'Declaração de std::vector',
+    prefix: 'vector',
+    header: 'vector',
+    description: 'Criação de um array dinâmico std::vector',
+    body: 'std::vector<${1:int}> ${2:v};${0}',
+  },
+  {
+    label: 'Declaração de std::string',
+    prefix: 'string',
+    header: 'string',
+    description: 'Criação de um objeto std::string',
+    body: 'std::string ${1:texto} = "${2}";${0}',
+  },
+  {
+    label: 'Declaração de std::map',
+    prefix: 'map',
+    header: 'map',
+    description: 'Criação de uma tabela associativa chave-valor std::map',
+    body: 'std::map<${1:std::string}, ${2:int}> ${3:mapa};${0}',
+  },
+  {
+    label: 'std::make_unique (Ponteiro inteligente exclusivo)',
+    prefix: 'unique_ptr',
+    header: 'memory',
+    description: 'Alocação segura com std::make_unique e dedução auto',
+    body: 'auto ${1:ptr} = std::make_unique<${2:Tipo}>(${3:args});${0}',
+  },
+  {
+    label: 'std::make_shared (Ponteiro inteligente compartilhado)',
+    prefix: 'shared_ptr',
+    header: 'memory',
+    description: 'Alocação com contagem de referências std::make_shared',
+    body: 'auto ${1:ptr} = std::make_shared<${2:Tipo}>(${3:args});${0}',
+  },
+  {
+    label: 'Bloco try-catch com std::exception',
+    prefix: 'trycatch',
+    description: 'Tratamento de exceções capturando const std::exception&',
+    body: 'try {\n\t${1:// código suscetível a erros}\n} catch (const std::exception &${2:e}) {\n\tstd::cerr << "Erro: " << ${2:e}.what() << std::endl;\n\t${0}\n}',
+  },
+  {
+    label: 'Definição de template de função/classe',
+    prefix: 'template',
+    description: 'Declaração de template genérico com template <typename T>',
+    body: 'template <typename ${1:T}>\n${0}',
+  },
+  {
+    label: 'Definição de namespace',
+    prefix: 'namespace',
+    description: 'Criação de um espaço de nomes isolado',
+    body: 'namespace ${1:NomeDoNamespace} {\n\t${0}\n}',
+  },
+  {
+    label: 'Expressão Lambda C++',
+    prefix: 'lambda',
+    description: 'Função anônima inline (closure) com captura e parâmetros',
+    body: '[${1:&}](${2:/* parâmetros */}) {\n\t${0}\n}',
+  },
+  {
+    label: 'std::sort ordenação de contêiner',
+    prefix: 'sort',
+    header: 'algorithm',
+    description: 'Ordena um vetor do início ao fim com std::sort',
+    body: 'std::sort(${1:v}.begin(), ${1:v}.end());${0}',
+  },
+];
