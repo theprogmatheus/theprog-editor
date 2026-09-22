@@ -1,25 +1,32 @@
 import type { VMStatus } from '../types/editor';
-import { compileC, executeWasmBinary, terminateCompilerWorker } from './cCompiler';
+import type { RunPlan, RuntimeId } from './languages/types';
+import { runtimeManager } from './runtimes/manager';
+import type { RuntimeIO, StdinController, SyncedFile } from './runtimes/types';
 
-export type ConsoleTab = 'compilation' | 'execution';
+export type ConsoleTab = 'environment' | 'execution';
 
 type OutputListener = (data: string) => void;
 type StatusListener = (status: VMStatus, message?: string) => void;
+
+export interface RunOptions {
+  onFilesUpdated?: (files: SyncedFile[]) => void;
+}
 
 class VMManager {
   public readonly PROMPT = '';
   private status: VMStatus = 'idle';
   private activeTab: ConsoleTab = 'execution';
   private tabListeners: Set<(tab: ConsoleTab) => void> = new Set();
-  private compilationListeners: Set<OutputListener> = new Set();
+  private environmentListeners: Set<OutputListener> = new Set();
   private executionListeners: Set<OutputListener> = new Set();
   private statusListeners: Set<StatusListener> = new Set();
 
   private isExecuting: boolean = false;
-  private currentWasmController: { sendStdin: (line: string) => void; abort: () => void } | null = null;
-  private currentAbortController: { abort: () => void } | null = null;
+  private currentController: StdinController | null = null;
+  private activeRuntime: RuntimeId | null = null;
   private isAwaitingProgramInput: boolean = false;
   private stdinInputBuffer: string = '';
+  private lastRunWasCached = false;
 
   constructor() {
     this.setStatus('ready', 'Sistema pronto');
@@ -40,9 +47,9 @@ class VMManager {
     return this.activeTab;
   }
 
-  public subscribeCompilationOutput(listener: OutputListener): () => void {
-    this.compilationListeners.add(listener);
-    return () => this.compilationListeners.delete(listener);
+  public subscribeEnvironmentOutput(listener: OutputListener): () => void {
+    this.environmentListeners.add(listener);
+    return () => this.environmentListeners.delete(listener);
   }
 
   public subscribeExecutionOutput(listener: OutputListener): () => void {
@@ -65,9 +72,9 @@ class VMManager {
     this.statusListeners.forEach((l) => l(status, message));
   }
 
-  public emitCompilationOutput(text: string) {
+  public emitEnvironmentOutput(text: string) {
     const normalized = text.replace(/\r?\n/g, '\r\n');
-    this.compilationListeners.forEach((l) => l(normalized));
+    this.environmentListeners.forEach((l) => l(normalized));
   }
 
   public emitExecutionOutput(text: string) {
@@ -83,12 +90,16 @@ class VMManager {
     return this.status;
   }
 
-  public syncFile(_filename: string, _content: string) {
-    // Compatibilidade reversa
+  public isRunning(): boolean {
+    return this.isExecuting;
   }
 
-  public clearCompilationTerminal() {
-    this.emitCompilationOutput('\x1b[2J\x1b[3J\x1b[H');
+  public syncFile(_filename: string, _content: string) {
+    // Compatibilidade reversa: a sincronização agora ocorre no momento da execução.
+  }
+
+  public clearEnvironmentTerminal() {
+    this.emitEnvironmentOutput('\x1b[2J\x1b[3J\x1b[H');
   }
 
   public clearExecutionTerminal() {
@@ -97,58 +108,47 @@ class VMManager {
   }
 
   public clearTerminal() {
-    this.clearCompilationTerminal();
+    this.clearEnvironmentTerminal();
     this.clearExecutionTerminal();
   }
 
   public stopExecution() {
     if (!this.isExecuting && !this.isAwaitingProgramInput) return;
     this.emitExecutionOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
-    this.emitCompilationOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
-    terminateCompilerWorker();
-    if (this.currentWasmController) {
+    this.emitEnvironmentOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
+    if (this.currentController) {
       try {
-        this.currentWasmController.abort();
-      } catch {}
-      this.currentWasmController = null;
+        this.currentController.abort();
+      } catch {
+        // ignore
+      }
+      this.currentController = null;
     }
-    if (this.currentAbortController) {
-      try {
-        this.currentAbortController.abort();
-      } catch {}
-      this.currentAbortController = null;
-    }
+    runtimeManager.terminate(this.activeRuntime);
     this.isExecuting = false;
     this.isAwaitingProgramInput = false;
     this.stdinInputBuffer = '';
     this.setStatus('ready', 'Execução interrompida');
   }
 
-  public async initV86(_alpineUrl?: string) {
-    this.setStatus('ready', 'Sistema pronto');
-  }
-
   public sendInput(data: string) {
-    // Se o programa em execução estiver aguardando entrada interativa (scanf / cin / getchar)
     if (this.isAwaitingProgramInput) {
       if (data === '\x03') {
         this.stopExecution();
         return;
       }
 
-      // Enter envia linha para o programa
       if (data === '\r' || data === '\n') {
         this.emitExecutionOutput('\r\n');
         const toSend = this.stdinInputBuffer + '\n';
         this.stdinInputBuffer = '';
         this.isAwaitingProgramInput = false;
-        if (this.currentWasmController) {
-          this.currentWasmController.sendStdin(toSend);
+        if (this.currentController) {
+          this.currentController.sendStdin(toSend);
         }
         return;
       }
 
-      // Backspace
       if (data === '\x7f' || data === '\b') {
         if (this.stdinInputBuffer.length > 0) {
           this.stdinInputBuffer = this.stdinInputBuffer.slice(0, -1);
@@ -157,14 +157,13 @@ class VMManager {
         return;
       }
 
-      // Colagem com múltiplas linhas
       if (data.includes('\r') || data.includes('\n')) {
         const full = this.stdinInputBuffer + data.replace(/\r\n|\r/g, '\n');
         const lines = full.split('\n');
         const remaining = lines.pop() || '';
         for (const line of lines) {
           this.emitExecutionOutput(line + '\r\n');
-          this.currentWasmController?.sendStdin(line + '\n');
+          this.currentController?.sendStdin(line + '\n');
         }
         this.stdinInputBuffer = remaining;
         if (remaining) {
@@ -173,7 +172,6 @@ class VMManager {
         return;
       }
 
-      // Caracteres imprimíveis normais
       if (data.length === 1 && data.charCodeAt(0) >= 32) {
         this.stdinInputBuffer += data;
         this.emitExecutionOutput(data);
@@ -183,16 +181,13 @@ class VMManager {
       return;
     }
 
-    // Se estiver executando (compilando ou calculando sem esperar stdin)
     if (this.isExecuting) {
-      // Ctrl+C interrompe imediatamente
       if (data === '\x03') {
         this.stopExecution();
       }
       return;
     }
 
-    // Console ocioso (não está executando nada)
     if (data === '\x03') {
       this.emitExecutionOutput('^C\r\n');
       return;
@@ -204,148 +199,71 @@ class VMManager {
   }
 
   /**
-   * Compila e executa o código com separação estrita em abas de Compilação e Execução
+   * Executa um plano de execução em qualquer runtime (C/C++, Python, JS/TS).
+   * O console mantém as abas "Ambiente" (build/carregamento) e "Execução" (programa).
    */
-  public async runCode(
-    mainFilename: string,
-    folderFiles: Map<string, string>,
-    extraCompilerArgs: string[] = [],
-    vfsFiles?: { path: string; data: Uint8Array }[],
-    onFilesUpdated?: (files: { path: string; data: Uint8Array; isNew?: boolean }[]) => void
-  ) {
+  public async run(plan: RunPlan, options: RunOptions = {}) {
     if (this.isExecuting) {
       this.stopExecution();
     }
 
-    // 1. Limpa ambos os terminais
-    this.clearCompilationTerminal();
+    this.clearEnvironmentTerminal();
     this.clearExecutionTerminal();
-
-    // 2. Inicia na aba de compilação
-    this.setActiveTab('compilation');
+    this.setActiveTab('environment');
 
     this.isExecuting = true;
-    this.setStatus('running', `Compilando ${mainFilename}...`);
+    this.activeRuntime = plan.runtime;
+    this.lastRunWasCached = false;
+    this.setStatus('running', plan.statusMessage);
 
-    const lower = mainFilename.toLowerCase();
-    const isC = lower.endsWith('.c');
-    const isCpp = lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx');
-    const isHeader = lower.endsWith('.h') || lower.endsWith('.hpp');
-    const binaryName = mainFilename.replace(/\.[^/.]+$/, '');
+    const io: RuntimeIO = {
+      onOutput: (text) => this.emitExecutionOutput(text),
+      onEnvironmentOutput: (text) => this.emitEnvironmentOutput(text),
+      onPhaseChange: (phase) => this.setActiveTab(phase),
+      onNeedStdin: () => {
+        this.isAwaitingProgramInput = true;
+        this.stdinInputBuffer = '';
+      },
+      onControllerReady: (controller) => {
+        this.currentController = controller;
+      },
+      onFsSync: (files) => options.onFilesUpdated?.(files),
+      onMeta: (meta) => {
+        if (meta.cached !== undefined) this.lastRunWasCached = meta.cached;
+      },
+    };
 
-    if (isHeader) {
-      this.emitCompilationOutput(
-        `\x1b[33m[Aviso: '${mainFilename}' é um arquivo de cabeçalho (.h/.hpp). Abra o arquivo .c ou .cpp para executar]\x1b[0m\r\n`
-      );
-      this.isExecuting = false;
-      this.setStatus('ready', 'Pronto');
-      return;
-    }
-
-    if (!isC && !isCpp) {
-      this.emitCompilationOutput(
-        `\x1b[33m[Aviso: o TheProg Editor executa código C e C++ (.c, .cpp)]\x1b[0m\r\n`
-      );
-      this.isExecuting = false;
-      this.setStatus('ready', 'Pronto');
-      return;
-    }
-
-    // Coleta arquivos de código .c/.cpp no mesmo escopo de pasta, incluindo auxiliares sem main()
-    const sources: string[] = [mainFilename];
-    folderFiles.forEach((content, name) => {
-      if (name !== mainFilename && (name.endsWith('.c') || name.endsWith('.cpp'))) {
-        const hasMain = /\b(?:int|void)\s+main\s*\(/.test(content);
-        if (!hasMain) {
-          sources.push(name);
-        }
-      }
-    });
-
-    const compilerCmd = isCpp ? 'clang++' : 'clang';
-    this.emitCompilationOutput(
-      `\x1b[90m$ ${compilerCmd} -O0 ${sources.join(' ')} -o ${binaryName}.wasm\x1b[0m\r\n`
-    );
+    const startTime = performance.now();
+    let exitCode = 1;
 
     try {
-      const compileResult = await compileC(
-        sources,
-        folderFiles,
-        binaryName,
-        (out) => {
-          this.emitCompilationOutput(out);
-        },
-        extraCompilerArgs
-      );
-
-      const { wasmBinary, wasCached } = compileResult;
-
-      if (!wasmBinary) {
-        this.isExecuting = false;
-        this.setStatus('error', 'Erro de compilação');
-        this.emitCompilationOutput(`\r\n\x1b[31m[Falha na compilação: verifique os erros acima]\x1b[0m\r\n`);
-        return;
-      }
-
-      this.emitCompilationOutput(
-        `\x1b[32m[Compilação concluída com sucesso${wasCached ? ' (cached)' : ''}]\x1b[0m\r\n`
-      );
-
-      // 3. Compilação concluída: Alterna automaticamente para a aba de Execução
-      this.setActiveTab('execution');
-      this.setStatus('running', `Executando ${binaryName}...`);
-
-      const startTime = performance.now();
-
-      const exitCode = await executeWasmBinary(binaryName, wasmBinary, {
-        onOutput: (out) => this.emitExecutionOutput(out),
-        onNeedStdin: () => {
-          this.isAwaitingProgramInput = true;
-          this.stdinInputBuffer = '';
-        },
-        onControllerReady: (ctrl) => {
-          this.currentWasmController = ctrl;
-          this.currentAbortController = ctrl;
-        },
-        vfsFiles,
-        onFsSync: onFilesUpdated,
-      });
-
-      const durationMs = performance.now() - startTime;
-      const durationFormatted = (durationMs / 1000).toFixed(3) + 's';
-      const cacheSuffix = wasCached ? ' (cached)' : '';
-
-      this.currentWasmController = null;
-      this.currentAbortController = null;
-      this.isAwaitingProgramInput = false;
-      this.stdinInputBuffer = '';
-      this.isExecuting = false;
-
-      this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Concluído' : 'Finalizado com erro');
-      if (exitCode === 0) {
-        this.emitExecutionOutput(`\r\n\x1b[90m[Processo finalizado com sucesso em ${durationFormatted}${cacheSuffix}]\x1b[0m\r\n`);
-      } else {
-        this.emitExecutionOutput(`\r\n\x1b[31m[Processo finalizado com código ${exitCode} em ${durationFormatted}${cacheSuffix}]\x1b[0m\r\n`);
-      }
+      exitCode = await runtimeManager.run(plan.runtime, plan, io);
     } catch (err: any) {
-      console.error('Erro na execução:', err);
-      if (this.activeTab === 'compilation') {
-        this.emitCompilationOutput(`\r\n\x1b[31m[Erro: ${err?.message || err}]\x1b[0m\r\n`);
-      } else {
-        this.emitExecutionOutput(`\r\n\x1b[31m[Erro na execução: ${err?.message || err}]\x1b[0m\r\n`);
-      }
-      this.isExecuting = false;
-      this.setStatus('error', 'Erro de execução');
+      this.emitExecutionOutput(`\r\n\x1b[31m[Erro na execução: ${err?.message || err}]\x1b[0m\r\n`);
+      exitCode = 1;
     }
-  }
 
-  /**
-   * Método de compatibilidade reversa
-   */
-  public async compileAndRun(filename: string, code: string) {
-    const singleFileMap = new Map<string, string>();
-    singleFileMap.set(filename, code);
-    return this.runCode(filename, singleFileMap);
+    const durationMs = performance.now() - startTime;
+    const durationFormatted = (durationMs / 1000).toFixed(3) + 's';
+    const cacheSuffix = this.lastRunWasCached ? ' (cached)' : '';
+
+    this.currentController = null;
+    this.activeRuntime = null;
+    this.isAwaitingProgramInput = false;
+    this.stdinInputBuffer = '';
+    this.isExecuting = false;
+
+    this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Concluído' : 'Finalizado com erro');
+
+    if (exitCode === 0) {
+      this.emitExecutionOutput(
+        `\r\n\x1b[90m[Processo finalizado com sucesso em ${durationFormatted}${cacheSuffix}]\x1b[0m\r\n`
+      );
+    } else if (exitCode !== 130) {
+      this.emitExecutionOutput(
+        `\r\n\x1b[31m[Processo finalizado com código ${exitCode} em ${durationFormatted}${cacheSuffix}]\x1b[0m\r\n`
+      );
+    }
   }
 }
 

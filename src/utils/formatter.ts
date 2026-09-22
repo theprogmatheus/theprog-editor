@@ -1,13 +1,29 @@
 import initAsync, { format as clangFormat } from '@wasm-fmt/clang-format/vite';
+import { runtimeManager } from '../services/runtimes/manager';
 
 let clangInitialized = false;
 let initPromise: Promise<void> | null = null;
 
 /**
- * Formata código usando o Clang-Format (WebAssembly oficial) com fallback inteligente
+ * Formata código com a ferramenta nativa de cada linguagem:
+ * - C/C++: Clang-Format (WebAssembly)
+ * - Python: black (executado no runtime Pyodide)
+ * - Demais: indentação inteligente (fallback)
  */
 export async function formatCode(code: string, filename: string = 'main.c'): Promise<string> {
   const lower = filename.toLowerCase();
+
+  if (lower.endsWith('.py')) {
+    try {
+      const formatted = await runtimeManager.formatPython(code);
+      if (formatted !== null && formatted !== undefined) {
+        return formatted;
+      }
+    } catch (err) {
+      console.warn('black indisponível, mantendo código original:', err);
+    }
+    return code;
+  }
 
   // Formatos nativamente suportados pelo Clang-Format (C e C++)
   const isSupportedByClang =

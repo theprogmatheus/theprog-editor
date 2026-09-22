@@ -19,13 +19,13 @@ import { useTheme } from '../../context/ThemeContext';
 import { useEditor } from '../../context/EditorContext';
 
 export const TerminalPanel: React.FC = () => {
-  const compilationRef = useRef<HTMLDivElement>(null);
+  const environmentRef = useRef<HTMLDivElement>(null);
   const executionRef = useRef<HTMLDivElement>(null);
 
-  const compilationXterm = useRef<XTerm | null>(null);
+  const environmentXterm = useRef<XTerm | null>(null);
   const executionXterm = useRef<XTerm | null>(null);
 
-  const compilationFitAddon = useRef<FitAddon | null>(null);
+  const environmentFitAddon = useRef<FitAddon | null>(null);
   const executionFitAddon = useRef<FitAddon | null>(null);
 
   const [activeTab, setActiveTab] = useState<ConsoleTab>(() => vmManager.getActiveTab());
@@ -95,12 +95,12 @@ export const TerminalPanel: React.FC = () => {
 
   const safeFit = useCallback(() => {
     const currentTab = vmManager.getActiveTab();
-    if (currentTab === 'compilation') {
-      if (compilationRef.current && compilationFitAddon.current) {
-        const { clientWidth, clientHeight } = compilationRef.current;
+    if (currentTab === 'environment') {
+      if (environmentRef.current && environmentFitAddon.current) {
+        const { clientWidth, clientHeight } = environmentRef.current;
         if (clientWidth > 60 && clientHeight > 40) {
           try {
-            compilationFitAddon.current.fit();
+            environmentFitAddon.current.fit();
           } catch {}
         }
       }
@@ -119,14 +119,14 @@ export const TerminalPanel: React.FC = () => {
   const safeFitRef = useRef<() => void>(safeFit);
   safeFitRef.current = safeFit;
 
-  // Inicialização dos dois terminais (Compilação e Execução)
+  // Inicialização dos dois terminais (Ambiente e Execução)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!compilationRef.current || !executionRef.current) return;
+    if (!environmentRef.current || !executionRef.current) return;
 
     const termTheme = getThemeConfig();
 
-    // 1. Terminal de Compilação
+    // 1. Terminal de Ambiente
     const compTerm = new XTerm({
       cursorBlink: false,
       allowTransparency: true,
@@ -139,10 +139,10 @@ export const TerminalPanel: React.FC = () => {
     const compLinks = new WebLinksAddon();
     compTerm.loadAddon(compFit);
     compTerm.loadAddon(compLinks);
-    compTerm.open(compilationRef.current);
+    compTerm.open(environmentRef.current);
 
-    compilationXterm.current = compTerm;
-    compilationFitAddon.current = compFit;
+    environmentXterm.current = compTerm;
+    environmentFitAddon.current = compFit;
 
     // Ctrl+C no terminal de compilação interrompe compilação
     compTerm.onData((data) => {
@@ -151,7 +151,7 @@ export const TerminalPanel: React.FC = () => {
       }
     });
 
-    const unsubComp = vmManager.subscribeCompilationOutput((data) => {
+    const unsubComp = vmManager.subscribeEnvironmentOutput((data) => {
       compTerm.write(data);
     });
 
@@ -189,7 +189,7 @@ export const TerminalPanel: React.FC = () => {
       requestAnimationFrame(() => safeFitRef.current());
     });
 
-    if (compilationRef.current) resizeObserver.observe(compilationRef.current);
+    if (environmentRef.current) resizeObserver.observe(environmentRef.current);
     if (executionRef.current) resizeObserver.observe(executionRef.current);
     window.addEventListener('resize', handleWindowResize);
 
@@ -202,9 +202,9 @@ export const TerminalPanel: React.FC = () => {
       unsubExec();
       compTerm.dispose();
       execTerm.dispose();
-      compilationXterm.current = null;
+      environmentXterm.current = null;
       executionXterm.current = null;
-      compilationFitAddon.current = null;
+      environmentFitAddon.current = null;
       executionFitAddon.current = null;
     };
   }, []);
@@ -212,8 +212,8 @@ export const TerminalPanel: React.FC = () => {
   // Atualiza dinamicamente temas
   useEffect(() => {
     const termTheme = getThemeConfig();
-    if (compilationXterm.current) {
-      compilationXterm.current.options.theme = termTheme;
+    if (environmentXterm.current) {
+      environmentXterm.current.options.theme = termTheme;
     }
     if (executionXterm.current) {
       executionXterm.current.options.theme = termTheme;
@@ -222,10 +222,10 @@ export const TerminalPanel: React.FC = () => {
 
   // Atualiza tamanho de fonte
   useEffect(() => {
-    if (compilationXterm.current) {
-      compilationXterm.current.options.fontSize = terminalFontSize;
+    if (environmentXterm.current) {
+      environmentXterm.current.options.fontSize = terminalFontSize;
       try {
-        compilationFitAddon.current?.fit();
+        environmentFitAddon.current?.fit();
       } catch {}
     }
     if (executionXterm.current) {
@@ -243,7 +243,7 @@ export const TerminalPanel: React.FC = () => {
       if (activeTab === 'execution') {
         executionXterm.current?.focus();
       } else {
-        compilationXterm.current?.focus();
+        environmentXterm.current?.focus();
       }
     }, 40);
     return () => clearTimeout(timer);
@@ -283,8 +283,8 @@ export const TerminalPanel: React.FC = () => {
     const handleFocus = () => {
       setIsTerminalMinimized(false);
       setTimeout(() => {
-        if (vmManager.getActiveTab() === 'compilation') {
-          compilationXterm.current?.focus();
+        if (vmManager.getActiveTab() === 'environment') {
+          environmentXterm.current?.focus();
         } else {
           executionXterm.current?.focus();
         }
@@ -292,7 +292,7 @@ export const TerminalPanel: React.FC = () => {
     };
 
     const handleClearEvent = () => {
-      compilationXterm.current?.reset();
+      environmentXterm.current?.reset();
       executionXterm.current?.reset();
     };
 
@@ -305,9 +305,9 @@ export const TerminalPanel: React.FC = () => {
   }, [setIsTerminalMinimized]);
 
   const handleClear = () => {
-    if (activeTab === 'compilation') {
-      compilationXterm.current?.reset();
-      vmManager.clearCompilationTerminal();
+    if (activeTab === 'environment') {
+      environmentXterm.current?.reset();
+      vmManager.clearEnvironmentTerminal();
     } else {
       executionXterm.current?.reset();
       vmManager.clearExecutionTerminal();
@@ -316,7 +316,7 @@ export const TerminalPanel: React.FC = () => {
 
   const handleCopy = useCallback(async () => {
     setContextMenu(null);
-    const term = activeTab === 'compilation' ? compilationXterm.current : executionXterm.current;
+    const term = activeTab === 'environment' ? environmentXterm.current : executionXterm.current;
     const selection = term?.getSelection();
     if (selection) {
       try {
@@ -341,33 +341,33 @@ export const TerminalPanel: React.FC = () => {
 
   const handleSelectAll = useCallback(() => {
     setContextMenu(null);
-    const term = activeTab === 'compilation' ? compilationXterm.current : executionXterm.current;
+    const term = activeTab === 'environment' ? environmentXterm.current : executionXterm.current;
     term?.selectAll();
   }, [activeTab]);
 
   return (
     <div
-      className={`flex flex-col border-t border-[#e5e5e5] dark:border-[#252526] bg-white dark:bg-[#1e1e1e] transition-all duration-150 relative ${
+      className={`flex flex-col shrink-0 border-t border-[#e5e5e5] dark:border-[#252526] bg-white dark:bg-[#1e1e1e] transition-all duration-150 relative ${
         isTerminalMinimized ? 'h-8' : isMaximized ? 'h-[75vh]' : 'h-52 sm:h-64'
       }`}
     >
-      {/* Topo do painel com Abas de Compilação e Execução */}
+      {/* Topo do painel com Abas de Ambiente e Execução */}
       <div className="h-8 px-2 flex items-center justify-between bg-[#ececec] dark:bg-[#252526] select-none text-xs border-b border-[#e5e5e5] dark:border-[#202020] text-[#333333] dark:text-[#cccccc] shrink-0">
         {/* Abas Alternáveis */}
         <div className="flex items-center h-full space-x-1">
-          {/* Aba Compilação */}
+          {/* Aba Ambiente */}
           <button
-            onClick={() => vmManager.setActiveTab('compilation')}
-            title="Exibir saída da compilação (flags, avisos e status do Clang)"
+            onClick={() => vmManager.setActiveTab('environment')}
+            title="Exibir saída do ambiente (carregamento de runtime, empacotamento, avisos e erros)"
             className={`h-full px-3 flex items-center space-x-1.5 text-xs font-semibold cursor-pointer transition-all relative ${
-              activeTab === 'compilation'
+              activeTab === 'environment'
                 ? 'bg-white dark:bg-[#1e1e1e] text-black dark:text-white'
                 : 'text-[#666666] dark:text-[#888888] hover:bg-[#e0e0e0] dark:hover:bg-[#2c2c2d] hover:text-black dark:hover:text-white'
             }`}
           >
             <Hammer className="w-3.5 h-3.5 text-[#007acc] dark:text-[#3794ff]" />
-            <span>Compilação</span>
-            {activeTab === 'compilation' && (
+            <span>Ambiente</span>
+            {activeTab === 'environment' && (
               <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#007acc] dark:bg-[#3794ff]" />
             )}
           </button>
@@ -424,7 +424,7 @@ export const TerminalPanel: React.FC = () => {
 
           <button
             onClick={handleClear}
-            title={`Limpar Aba de ${activeTab === 'compilation' ? 'Compilação' : 'Execução'}`}
+            title={`Limpar Aba de ${activeTab === 'environment' ? 'Ambiente' : 'Execução'}`}
             className="p-1 rounded hover:bg-[#dedede] dark:hover:bg-[#333333] hover:text-black dark:hover:text-white cursor-pointer"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -463,8 +463,8 @@ export const TerminalPanel: React.FC = () => {
         className="flex-1 w-full overflow-hidden bg-white dark:bg-[#1e1e1e] relative"
       >
         <div
-          ref={compilationRef}
-          style={{ display: activeTab === 'compilation' ? 'block' : 'none' }}
+          ref={environmentRef}
+          style={{ display: activeTab === 'environment' ? 'block' : 'none' }}
           className="w-full h-full"
         />
         <div

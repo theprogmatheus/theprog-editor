@@ -11,9 +11,6 @@ import {
   Sliders,
   Save,
   Server,
-  Cpu,
-  HardDrive,
-  Play,
   RefreshCw,
   ShieldAlert,
   ShieldCheck,
@@ -29,8 +26,14 @@ import { useDialog } from '../../context/DialogContext';
 import { useEditor } from '../../context/EditorContext';
 import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { defaultFiles, saveFileToStorage } from '../../services/storage';
-import { vmManager } from '../../services/vmManager';
 import { APP_VERSION } from '../../config/version';
+import { pythonRuntime } from '../../services/runtimes/pythonRuntime';
+import type { RuntimeProgress } from '../../services/runtimes/types';
+import {
+  listPythonPackages,
+  removePythonPackage,
+  type PythonPackageEntry,
+} from '../../services/pythonPackages';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -38,6 +41,39 @@ interface SettingsModalProps {
 }
 
 type SettingsTab = 'general' | 'system' | 'about';
+
+function formatStorageSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+}
+
+const RuntimeStatusBadge: React.FC<{ progress?: RuntimeProgress; readyLabel?: string }> = ({
+  progress,
+  readyLabel = 'Pronto',
+}) => {
+  const status = progress?.status || 'unloaded';
+  const className =
+    status === 'ready'
+      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/50'
+      : status === 'loading'
+      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700/50'
+      : status === 'error'
+      ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700/50'
+      : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700';
+
+  const text =
+    status === 'ready'
+      ? `${readyLabel} (100%)`
+      : status === 'loading'
+      ? `Carregando (${Math.round(progress?.percent || 0)}%)`
+      : status === 'error'
+      ? 'Erro'
+      : 'Aguardando';
+
+  return <span className={`px-2 py-0.5 rounded text-[11px] border ${className}`}>{text}</span>;
+};
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -54,18 +90,43 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     activeWorkspace,
     alwaysOpenLast,
     setAlwaysOpenLast,
-    vmStatus,
-    vmStatusMessage,
-    compilerProgress,
-    preloadCompiler,
+    runtimes,
+    preloadRuntimes,
     isSystemReady,
     systemStatus,
     systemProgressPercent,
   } = useEditor();
 
   const [flagsInput, setFlagsInput] = useState(compilerFlags.join(' '));
-  const [customIsoUrl, setCustomIsoUrl] = useState('');
-  const [isBooting, setIsBooting] = useState(false);
+  const [pythonPackages, setPythonPackages] = useState<PythonPackageEntry[]>([]);
+  const [packageInput, setPackageInput] = useState('');
+  const [packageStatus, setPackageStatus] = useState<string | null>(null);
+  const [isInstallingPackages, setIsInstallingPackages] = useState(false);
+  const [storageInfo, setStorageInfo] = useState<{ usage: number; quota: number } | null>(null);
+
+  const refreshPythonPackages = React.useCallback(async () => {
+    try {
+      setPythonPackages(await listPythonPackages(activeWorkspace));
+    } catch (err) {
+      console.warn('Erro ao listar pacotes Python:', err);
+    }
+  }, [activeWorkspace]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      refreshPythonPackages();
+    }
+  }, [isOpen, refreshPythonPackages]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    navigator.storage
+      ?.estimate?.()
+      .then((estimate) =>
+        setStorageInfo({ usage: estimate.usage || 0, quota: estimate.quota || 0 })
+      )
+      .catch(() => setStorageInfo(null));
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -79,7 +140,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   const handleResetWorkspace = async () => {
     const confirmed = await showConfirm({
       title: 'Restaurar Workspace',
-      message: 'Deseja restaurar o arquivo inicial padrão (main.c)? Todas as alterações atuais da sandbox serão substituídas.',
+      message:
+        'Deseja restaurar os arquivos de exemplo (main.c, main.py, index.js e main.ts)? Todas as alterações atuais da sandbox serão substituídas.',
       confirmText: 'Restaurar',
       cancelText: 'Cancelar',
       danger: true,
@@ -92,10 +154,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     }
   };
 
-  const handleStartV86 = async () => {
-    setIsBooting(true);
-    await vmManager.initV86(customIsoUrl.trim() || undefined);
-    setIsBooting(false);
+  const handleInstallPackages = async () => {
+    const names = packageInput.trim().split(/[\s,]+/).filter(Boolean);
+    if (names.length === 0) return;
+    setIsInstallingPackages(true);
+    setPackageStatus(`Instalando ${names.join(', ')}...`);
+    try {
+      await pythonRuntime.installPackages(names, (event) => {
+        if (event.message) setPackageStatus(event.message);
+      });
+      setPackageStatus('Pacotes instalados e cacheados para uso offline.');
+      setPackageInput('');
+      await refreshPythonPackages();
+    } catch (err: any) {
+      setPackageStatus(`Erro: ${err?.message || err}`);
+    } finally {
+      setIsInstallingPackages(false);
+    }
+  };
+
+  const handleRemovePackage = async (fileName: string) => {
+    await removePythonPackage(activeWorkspace, fileName);
+    await refreshPythonPackages();
+    setPackageStatus('Pacote removido do cache offline do projeto.');
+  };
+
+  const handleClearRuntimeCaches = async () => {
+    if (typeof caches === 'undefined') return;
+    const confirmed = await showConfirm({
+      title: 'Limpar Caches dos Ambientes',
+      message:
+        'Isso remove os arquivos cacheados dos runtimes (Clang, Python e esbuild). Na próxima execução, eles serão baixados novamente (requer internet). Deseja continuar?',
+      confirmText: 'Limpar caches',
+      cancelText: 'Cancelar',
+      danger: true,
+    });
+    if (!confirmed) return;
+    try {
+      const names = await caches.keys();
+      await Promise.all(names.map((name) => caches.delete(name)));
+      window.location.reload();
+    } catch (err) {
+      console.warn('Erro ao limpar caches:', err);
+    }
   };
 
   return (
@@ -140,7 +241,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
             }`}
           >
             <Server className="w-3.5 h-3.5" />
-            <span>Sistema & Linux</span>
+            <span>Ambientes & Sistema</span>
             <span
               className={`w-2 h-2 rounded-full ${
                 isSystemReady ? 'bg-emerald-500' : systemStatus === 'error' ? 'bg-rose-500' : 'bg-blue-500 animate-ping'
@@ -376,7 +477,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-[#f0f0f0] hover:bg-[#e4e4e4] dark:bg-[#333333] dark:hover:bg-[#3d3d3d] text-amber-700 dark:text-amber-300 border border-amber-500/30 cursor-pointer transition-colors"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Restaurar Template Inicial do Sandbox (main.c)</span>
+                    <span>Restaurar Arquivos de Exemplo do Sandbox</span>
                   </button>
                 </div>
               )}
@@ -416,36 +517,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                 )}
                 <p className="text-[11px] text-[#666666] dark:text-[#888888] leading-relaxed">
-                  O compilador Clang e a máquina virtual Linux operam inteiramente no cliente via WebAssembly, sem servidores intermediários.
+                  Os ambientes de execução (Clang, Python e JavaScript/TypeScript) operam inteiramente no cliente via WebAssembly, sem servidores intermediários.
                 </p>
               </div>
 
-              {/* 1. Compilador Clang WebAssembly (C/C++) */}
+              {/* 1. Ambiente C/C++ (Clang) */}
               <div className="p-3.5 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-black dark:text-white">1. Compilador Clang C/C++ (LLVM WebAssembly)</span>
-                  <span
-                    className={`px-2 py-0.5 rounded text-[11px] border ${
-                      compilerProgress.status === 'ready'
-                        ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700/50'
-                        : compilerProgress.status === 'preloading'
-                        ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 border-blue-300 dark:border-blue-700/50'
-                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700'
-                    }`}
-                  >
-                    {compilerProgress.status === 'ready'
-                      ? 'Pronto na memória (100%)'
-                      : compilerProgress.status === 'preloading'
-                      ? `Carregando (${compilerProgress.percent}%)`
-                      : 'Aguardando'}
-                  </span>
+                  <span className="font-semibold text-black dark:text-white">1. Ambiente C/C++ (Clang LLVM)</span>
+                  <RuntimeStatusBadge progress={runtimes.clang} readyLabel="Pronto na memória" />
                 </div>
                 <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
                   Binário Clang LLVM carregado no navegador com suporte completo às bibliotecas padrão libc/libstdc++ para compilação estática offline.
                 </p>
-                {compilerProgress.status === 'error' && (
+                {runtimes.clang?.status === 'error' && (
                   <button
-                    onClick={() => preloadCompiler()}
+                    onClick={() => preloadRuntimes()}
                     className="flex items-center space-x-1 text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
                   >
                     <RefreshCw className="w-3 h-3" />
@@ -454,41 +541,107 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 )}
               </div>
 
-              {/* 2. Ambiente Linux & Runtime (v86 / WASI) */}
+              {/* 2. Ambiente Python (Pyodide) */}
               <div className="p-3.5 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-black dark:text-white">2. Ambiente Linux & Runtime (v86 / WASI)</span>
-                  <span className="px-2 py-0.5 rounded text-[11px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700/50">
-                    {vmStatusMessage || vmStatus}
-                  </span>
+                  <span className="font-semibold text-black dark:text-white">2. Ambiente Python (Pyodide + black)</span>
+                  <RuntimeStatusBadge progress={runtimes.python} readyLabel="Pronto na memória" />
                 </div>
                 <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
-                  Emulador de arquitetura x86 e runtime POSIX WASI com isolamento em Web Worker, garantindo proteção contra travamentos do navegador.
+                  CPython completo em WebAssembly com biblioteca padrão, entrada interativa (input()), formatação com black e
+                  sistema de arquivos virtual sincronizado com o projeto.
                 </p>
+                {runtimes.python?.status === 'error' && (
+                  <button
+                    onClick={() => preloadRuntimes()}
+                    className="flex items-center space-x-1 text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Tentar reconectar Python</span>
+                  </button>
+                )}
 
-                <div className="grid grid-cols-2 gap-2 pt-1">
-                  <div className="p-2.5 bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#333333] rounded-lg space-y-0.5">
-                    <div className="flex items-center space-x-1.5 font-medium text-black dark:text-white text-[11px]">
-                      <Cpu className="w-3 h-3 text-sky-600 dark:text-sky-400" />
-                      <span>Processador</span>
-                    </div>
-                    <p className="text-[11px] text-[#666666] dark:text-[#888888]">x86 32-bit (Wasm JIT)</p>
+                <div className="pt-1 space-y-2 border-t border-[#e5e5e5] dark:border-[#333333]">
+                  <span className="font-medium text-black dark:text-white text-[11px]">
+                    Pacotes Python (micropip, requer internet na instalação; depois ficam offline)
+                  </span>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={packageInput}
+                      onChange={(e) => setPackageInput(e.target.value)}
+                      placeholder="Ex: numpy requests"
+                      className="flex-1 bg-white dark:bg-[#252526] border border-[#cccccc] dark:border-[#3e3e42] rounded-lg px-3 py-1.5 text-black dark:text-white outline-none focus:border-[#007acc]"
+                    />
+                    <button
+                      onClick={handleInstallPackages}
+                      disabled={isInstallingPackages}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-white font-medium shrink-0 transition-colors ${
+                        isInstallingPackages
+                          ? 'bg-neutral-400 dark:bg-neutral-600 cursor-not-allowed'
+                          : 'bg-[#007acc] hover:bg-[#0062a3] cursor-pointer'
+                      }`}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>{isInstallingPackages ? 'Instalando...' : 'Instalar'}</span>
+                    </button>
                   </div>
-
-                  <div className="p-2.5 bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#333333] rounded-lg space-y-0.5">
-                    <div className="flex items-center space-x-1.5 font-medium text-black dark:text-white text-[11px]">
-                      <HardDrive className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                      <span>Memória RAM</span>
+                  {packageStatus && (
+                    <p className="text-[11px] text-[#666666] dark:text-[#999999]">{packageStatus}</p>
+                  )}
+                  {pythonPackages.length > 0 && (
+                    <div className="space-y-1">
+                      {pythonPackages.map((pkg) => (
+                        <div
+                          key={pkg.fileName}
+                          className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#333333]"
+                        >
+                          <div className="flex items-center space-x-2 font-mono text-[11px] text-[#444444] dark:text-[#cccccc]">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                            <span>
+                              {pkg.name}=={pkg.version}
+                            </span>
+                            <span className="text-[#999999] dark:text-[#777777]">(offline)</span>
+                          </div>
+                          <button
+                            onClick={() => handleRemovePackage(pkg.fileName)}
+                            title="Remover do cache offline"
+                            className="text-[#999999] hover:text-rose-600 cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-[11px] text-[#666666] dark:text-[#888888]">256 MB (Wasm)</p>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* 3. Entrada Interativa no Terminal */}
+              {/* 3. Ambiente JavaScript/TypeScript (esbuild) */}
               <div className="p-3.5 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-black dark:text-white">3. Entrada Interativa no Terminal (scanf / cin)</span>
+                  <span className="font-semibold text-black dark:text-white">3. Ambiente JavaScript/TypeScript (esbuild)</span>
+                  <RuntimeStatusBadge progress={runtimes.js} readyLabel="Pronto na memória" />
+                </div>
+                <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+                  Execução de scripts JS/TS no navegador com suporte a módulos locais (import/require), console integrado,
+                  entrada interativa (input()) e diagnósticos de tipo no editor.
+                </p>
+                {runtimes.js?.status === 'error' && (
+                  <button
+                    onClick={() => preloadRuntimes()}
+                    className="flex items-center space-x-1 text-rose-600 hover:text-rose-700 font-medium cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Tentar reconectar JavaScript/TypeScript</span>
+                  </button>
+                )}
+              </div>
+
+              {/* 4. Entrada Interativa no Terminal */}
+              <div className="p-3.5 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-black dark:text-white">4. Entrada Interativa no Terminal (scanf / cin / input)</span>
                   <span
                     className={`px-2 py-0.5 rounded text-[11px] border flex items-center space-x-1 ${
                       isCoiActive
@@ -511,7 +664,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
                 <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
                   {isCoiActive
-                    ? 'O ambiente opera com Cross-Origin Isolation ativado. Entradas de dados em chamadas como scanf() e cin são capturadas diretamente no terminal em tempo real.'
+                    ? 'O ambiente opera com Cross-Origin Isolation ativado. Entradas de dados em scanf(), cin, input() do Python e input() do JavaScript são capturadas diretamente no terminal em tempo real.'
                     : 'Para digitar entradas interativas durante a execução, acesse através do endereço oficial do TheProg Editor ou instale o aplicativo (PWA).'}
                 </p>
                 {!isCoiActive && (
@@ -529,29 +682,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 )}
               </div>
 
-              {/* Imagem Alpine Linux Opcional */}
-              <div className="space-y-2">
-                <label className="block font-semibold text-black dark:text-white">
-                  Imagem do Alpine Linux / ISO Customizada (Opcional):
-                </label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    placeholder="Ex: https://copy.sh/v86/build/alpine.iso ou deixe vazio para padrão"
-                    value={customIsoUrl}
-                    onChange={(e) => setCustomIsoUrl(e.target.value)}
-                    className="flex-1 bg-white dark:bg-[#1e1e1e] border border-[#cccccc] dark:border-[#3e3e42] rounded-lg px-3 py-1.5 text-black dark:text-white outline-none focus:border-[#007acc]"
-                  />
-                  <button
-                    onClick={handleStartV86}
-                    disabled={isBooting}
-                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#007acc] hover:bg-[#0062a3] text-white font-medium cursor-pointer shrink-0 transition-colors"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>{isBooting ? 'Reiniciando...' : 'Reiniciar VM'}</span>
-                  </button>
+              {/* 5. Armazenamento Offline */}
+              <div className="p-3.5 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-black dark:text-white">5. Armazenamento Offline (Cache & IndexedDB)</span>
+                  {storageInfo && (
+                    <span className="px-2 py-0.5 rounded text-[11px] border bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700">
+                      {formatStorageSize(storageInfo.usage)} em uso
+                    </span>
+                  )}
                 </div>
+                <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+                  Os ambientes de execução, wheels e pacotes Python ficam cacheados localmente pelo Service Worker e pelo
+                  IndexedDB.
+                  {storageInfo && storageInfo.quota > 0
+                    ? ` Cota disponível no navegador: ${formatStorageSize(storageInfo.quota)}.`
+                    : ''}
+                </p>
+                <button
+                  onClick={handleClearRuntimeCaches}
+                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#f0f0f0] hover:bg-[#e4e4e4] dark:bg-[#333333] dark:hover:bg-[#3d3d3d] text-amber-700 dark:text-amber-300 border border-amber-500/30 cursor-pointer transition-colors"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Limpar caches dos ambientes</span>
+                </button>
               </div>
+
             </>
           )}
 
@@ -568,7 +724,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   </div>
                 </div>
                 <p className="text-xs text-[#555555] dark:text-[#bbbbbb] leading-relaxed">
-                  Ambiente de desenvolvimento integrado (IDE) web moderno e resiliente para programação em C e C++, operando com compilação WebAssembly cliente (Clang LLVM) e máquina virtual POSIX/WASI.
+                  Ambiente de desenvolvimento integrado (IDE) web moderno e resiliente para programação em C, C++, Python, JavaScript e TypeScript, com compilação e interpretação WebAssembly executadas inteiramente no navegador.
                 </p>
               </div>
 
@@ -628,7 +784,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   Resiliência a Oscilações de Rede & PWA
                 </span>
                 <p className="text-[11px] text-[#666666] dark:text-[#888888] leading-relaxed">
-                  O TheProg Editor foi construído para resistir a instabilidades e quedas temporárias de internet. O suporte completo à sincronização em tempo real de diretórios no disco e instalação autônoma (PWA) é garantido em navegadores com motor Chromium (Google Chrome, Microsoft Edge, Brave).
+                  O TheProg Editor foi construído para resistir a instabilidades e quedas temporárias de internet. Após o primeiro
+                  acesso (que baixa e cacheia os ambientes), o editor opera offline. O suporte completo à sincronização em tempo
+                  real de diretórios no disco e instalação autônoma (PWA) é garantido em navegadores com motor Chromium (Google
+                  Chrome, Microsoft Edge, Brave).
                 </p>
               </div>
             </>

@@ -41,13 +41,13 @@ export const LinuxLoadingScreen: React.FC<LinuxLoadingScreenProps> = ({
 
         {/* Mensagem de status */}
         <p className="text-xs text-[#999999] mb-5 min-h-[1.25rem]">
-          {statusMessage || 'Inicializando compilador Clang e ambiente de execução...'}
+          {statusMessage || 'Preparando ambientes de execução (C/C++, Python, JavaScript e TypeScript)...'}
         </p>
 
         {isError ? (
           <div className="space-y-3">
             <div className="p-2.5 rounded bg-rose-950/40 border border-rose-800 text-xs text-rose-300">
-              Falha ao carregar o compilador. Verifique sua conexão e tente novamente.
+              Falha ao carregar os ambientes. Verifique sua conexão e tente novamente.
             </div>
             <button
               onClick={() => window.location.reload()}
@@ -67,14 +67,14 @@ export const LinuxLoadingScreen: React.FC<LinuxLoadingScreenProps> = ({
             </div>
 
             <div className="flex items-center justify-between text-[11px] text-[#777777] font-mono px-0.5">
-              <span>Carregando Sistema</span>
+              <span>Preparando ambientes</span>
               <span className="text-[#3794ff] font-semibold">{percent}%</span>
             </div>
           </div>
         )}
 
         <span className="text-[10px] text-[#555555] mt-8 font-mono">
-          Compilação C/C++ Real em WebAssembly • Resistente a oscilações e falta de internet
+          C, C++, Python, JavaScript e TypeScript em WebAssembly • Offline após o primeiro acesso
         </span>
       </div>
     </div>

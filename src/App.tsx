@@ -82,7 +82,7 @@ const MainApp: React.FC = () => {
     hasEnteredEditorSession,
   } = useEditor();
 
-  // 1. Carrega ambiente Linux e compilador Clang upfront antes mesmo de escolher o workspace
+  // 1. Carrega os ambientes de execução (Clang, Python e JS/TS) upfront antes mesmo de escolher o workspace
   if (!isSystemReady) {
     return (
       <LinuxLoadingScreen

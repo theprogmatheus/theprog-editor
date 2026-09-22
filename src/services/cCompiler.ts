@@ -281,7 +281,7 @@ export async function compileC(
 
   // 2. Se o compilador ainda estiver inicializando seus arquivos base:
   if (currentProgress.status !== 'ready') {
-    onOutput('\x1b[36m[TheProg] Inicializando compilador C/C++ WebAssembly em background...\x1b[0m\r\n');
+    onOutput('\x1b[36m[TheProg] Inicializando ambiente C/C++ WebAssembly em background...\x1b[0m\r\n');
     let lastReported = -1;
     const unsubscribe = subscribeCompilerProgress((prog) => {
       if (prog.status === 'preloading' && prog.percent !== lastReported) {

@@ -1,41 +1,39 @@
-# 💻 TheProg Editor (v0.4.1)
+# 💻 TheProg Editor (v0.5.0)
 
-> **IDE Web PWA 100% Offline com compilação e execução nativa em C e C++ via WebAssembly.**
+> **IDE Web PWA multilinguagem com compilação e execução nativas de C, C++, Python, JavaScript e TypeScript via WebAssembly — offline após o primeiro acesso.**
 
 [![Produção](https://img.shields.io/badge/Acessar-matheus.eti.br%2Ftheprog--editor-007acc?style=flat&logo=googlechrome&logoColor=white)](https://matheus.eti.br/theprog-editor)
-![Version](https://img.shields.io/badge/version-0.4.1-blue.svg)
-![PWA](https://img.shields.io/badge/PWA-100%25_Offline-emerald.svg)
-![Language](https://img.shields.io/badge/Language-C%20%2F%20C%2B%2B-00599c.svg)
+![Version](https://img.shields.io/badge/version-0.5.0-blue.svg)
+![PWA](https://img.shields.io/badge/PWA-Offline_ap%C3%B3s_1%C2%BA_acesso-emerald.svg)
+![Languages](https://img.shields.io/badge/Languages-C%20%7C%20C%2B%2B%20%7C%20Python%20%7C%20JS%20%7C%20TS-00599c.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 
-O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda diretamente na aba do navegador, concebido com foco total em portabilidade, privacidade e autonomia. Ele permite escrever, formatar, compilar e executar programas em **C e C++** sem depender de servidores remotos, containers na nuvem ou conexão com a internet.
+O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda diretamente na aba do navegador, concebido com foco total em portabilidade, privacidade e autonomia. Ele permite escrever, formatar, compilar, interpretar e executar programas em **C, C++, Python, JavaScript e TypeScript** sem depender de servidores remotos ou containers na nuvem.
+
+> **Sobre o modo offline:** no primeiro acesso é necessária conexão com a internet para baixar e cachear os ambientes de execução (Clang/LLVM, Pyodide e esbuild). A partir do segundo acesso, o editor opera integralmente offline como PWA instalável.
 
 ---
 
 ## 🚀 Principais Recursos
 
-- **Compilador Clang Real no Navegador (WebAssembly):** Compilação autêntica através do `@yowasp/clang` com suporte completo a padrões C11/C17 e C++17/C++20.
-- **Compilação Assíncrona em Web Worker Dedicado:** A compilação pesada do Clang roda isolada em segundo plano (`compilerWorker.ts`), garantindo **zero congelamentos de interface (0 UI freezes)**, permitindo continuar navegando e digitando fluentemente no editor.
-- **Cache Instantâneo de Binários (Zero-Delay Re-run):** Mecanismo de hash de conteúdo para arquivos-fonte e cabeçalhos. Se o código não foi alterado desde a última compilação bem-sucedida, o editor reaproveita o binário em 0ms, indicando discretamente `(cached)` na finalização do processo.
-- **Console Organizado em Abas (Compilação & Execução):**
-  - **Aba "Compilação":** Exibe o comando executado pelo Clang, flags de compilação, avisos (*warnings*) e diagnósticos de erro. Se houver falha, a aba permanece aberta com a linha do erro destacada.
-  - **Aba "Execução":** Canal limpo e dedicado exclusivamente às entradas e saídas do programa (*stdin*, *stdout*, *stderr*) e mensagem de encerramento com tempo de execução e código de retorno.
-  - **Alternância Automática de Abas:** O editor alterna dinamicamente para a aba de compilação no início do processo e para a de execução assim que o binário é gerado, mantendo as duas saídas independentes e consultáveis a qualquer momento.
-- **Botão Explícito "Compilar & Executar":** Identificação clara e direta na barra superior (`TitleBar`) e no menu de contexto com atalho rápido `F5`, permitindo também interromper (`Interromper` / `Ctrl+C`) com segurança.
-- **IntelliSense & Autocompletar Inteligente para C e C++ (Monaco Editor):**
-  - **Filtro Estrito de Bibliotecas:** O autocompletar (`Ctrl+Space`) exibe apenas funções, constantes e snippets das bibliotecas incluídas via `#include <...>` (como `<stdio.h>`, `<stdlib.h>`, `<string.h>`, `<iostream>`, `<vector>`, `<string>`, etc.) ou de arquivos locais `#include "..."`.
-  - **Suporte C++ & STL:** Resolução de escopo para `std::` e detecção automática de `using namespace std;`, além de sugestão de métodos de containers (`vector`, `string`, `map`, etc.) ao digitar `.` ou `->`.
-  - **Análise Semântica de Símbolos:** Detecção automática de variáveis, structs, classes, typedefs e funções declaradas no arquivo ou em cabeçalhos locais do projeto.
-  - **Snippets Didáticos:** Modelos prontos com tabulação dinâmica (estruturas de repetição, condicionais, vetores, alocação dinâmica e templates).
-  - **Hover Tooltips & Signature Help:** Dicas de documentação ao passar o cursor sobre funções e assistência de parâmetros em tempo real ao abrir parênteses `( )`.
-- **Sistema de Arquivos Virtual Bidirecional (WASI):** Suporte autêntico a manipulação de arquivos com `fopen()`, `fread()`, `fwrite()`, `fprintf()`, `fscanf()`, `ifstream` e `ofstream`. Arquivos criados ou modificados pelo seu código aparecem instantaneamente na árvore de arquivos e são persistidos no IndexedDB.
-- **100% Pronto para Ensino Acadêmico (AP1, AP2, ED1 e ED2):** Suporte nativo a ponteiros, structs, classes, alocação dinâmica (`malloc`/`free`/`new`/`delete`), listas encadeadas, pilhas, filas e árvores binárias.
-- **Entrada Interativa com `stdin` em Tempo Real:** Suporte completo a chamadas bloqueantes como `scanf()`, `getchar()`, `cin` e `fgets()` executadas em Web Worker com sincronização via `SharedArrayBuffer` e `Atomics`.
-- **Suporte Perfeito a Acentos (UTF-8 Streaming):** Leitura e impressão íntegras de caracteres acentuados da língua portuguesa (ã, ç, ó, é, etc.) sem perdas ou corrupções.
-- **Formatação Industrial de Código:** Integração nativa com **Clang-Format** em WebAssembly (`@wasm-fmt/clang-format`), acessível via botão direito ou `Shift + Alt + F`.
-- **Gerenciador de Arquivos Completo:** Criação, exclusão, renomeação e organização em diretórios via Drag & Drop, com exportação do projeto em arquivo ZIP.
-- **Armazenamento 100% Local (IndexedDB):** Todos os arquivos, códigos e preferências são salvos no navegador sem envio a servidores externos.
-- **PWA Instalável e Autônomo:** Instalável em computadores e celulares, funcionando em janela própria mesmo totalmente sem internet.
+- **Cinco linguagens com execução real no navegador:**
+  - **C/C++:** compilação autêntica com Clang (LLVM WebAssembly) e execução WASI.
+  - **Python:** CPython completo via **Pyodide** (stdlib, entrada interativa, arquivos e pacotes via micropip).
+  - **JavaScript/TypeScript:** empacotamento com **esbuild-wasm** (módulos locais `import`/`require`) e execução isolada em Web Worker.
+  - **TypeScript com diagnósticos de tipo** no editor (TS worker nativo do Monaco).
+- **Botão de execução dinâmico:** o botão "Executar" / "Compilar & Executar" só é habilitado quando o arquivo ativo é executável (por exemplo, exige `main()` em C/C++) e o ambiente correspondente está pronto, sempre com o motivo exibido no tooltip.
+- **Cache completo para uso offline:** todos os runtimes (Clang, Pyodide, esbuild), wheels de formatação e pacotes Python instalados são cacheados no Service Worker, no IndexedDB e/ou no próprio diretório do projeto (`.theprog/py-packages/`).
+- **Pacotes Python persistentes:** instale com `micropip` (ex.: `numpy`, `requests`) uma única vez online; depois o pacote é reinstalado automaticamente offline a partir do cache do projeto.
+- **Console Organizado em Abas (Ambiente & Execução):**
+  - **Aba "Ambiente":** carregamento de runtimes, comando do compilador/empacotador, avisos e diagnósticos.
+  - **Aba "Execução":** stdin/stdout/stderr do programa e mensagem de encerramento com tempo de execução e código de retorno.
+- **Entrada Interativa em Tempo Real:** `scanf()`, `cin`, `input()` (Python) e `input()` (JavaScript) com sincronização via `SharedArrayBuffer` e `Atomics`, incluindo `Ctrl+C` para interromper loops infinitos.
+- **Formatação por linguagem:** Clang-Format para C/C++, **black** para Python e indentação inteligente/TypeScript nativo para JS/TS.
+- **Arquivos binários protegidos:** imagens ganham pré-visualização e binários exibem "Visualização não suportada" (com download e opção de forçar leitura como texto), sem risco de corrupção no salvamento.
+- **IntelliSense para C/C++ e Python:** catálogo de bibliotecas padrão, resolução de `#include`, snippets didáticos, hover e assinatura de funções (C/C++), além de snippets e palavras-chave (Python).
+- **Sistema de Arquivos Virtual Bidirecional:** arquivos criados ou modificados pelo código aparecem instantaneamente na árvore e são persistidos no IndexedDB ou no disco.
+- **Armazenamento 100% Local:** todos os arquivos, códigos e preferências ficam no navegador (IndexedDB) ou em pastas locais do computador, sem envio a servidores externos.
+- **PWA Instalável e Autônomo:** instalável em computadores e celulares, funcionando em janela própria.
 
 ---
 
@@ -46,13 +44,17 @@ O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda 
 | **Framework UI** | [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) |
 | **Build & Dev Tool** | [Vite](https://vite.dev/) + [Tailwind CSS v4](https://tailwindcss.com/) |
 | **Editor de Código** | [Monaco Editor](https://microsoft.github.io/monaco-editor/) (`@monaco-editor/react`) |
-| **Linguagem & IntelliSense** | Service Customizado de Language Features (`cLanguageService.ts`) |
-| **Console de Execução** | [Xterm.js](https://xtermjs.org/) + Fit Addon + WebLinks Addon (Multi-instância) |
 | **Compilação C/C++** | [YoWASP Clang](https://yowasp.org/) isolado em Web Worker |
-| **Ambiente de Execução** | Web Worker isolado com [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim) |
-| **Formatador** | [Clang-Format Wasm](https://github.com/wasm-fmt/clang-format) |
+| **Runtime C/C++** | Web Worker isolado com [`@bjorn3/browser_wasi_shim`](https://github.com/bjorn3/browser_wasi_shim) |
+| **Runtime Python** | [Pyodide](https://pyodide.org/) (CPython em WebAssembly) + `micropip` + `black` |
+| **Runtime JS/TS** | [esbuild-wasm](https://esbuild.github.io/) (empacotamento) + sandbox em Web Worker |
+| **IntelliSense C/C++** | Service customizado (`cLanguageService.ts`) |
+| **IntelliSense Python** | Snippets e palavras-chave (`pythonLanguageService.ts`) |
+| **IntelliSense TS/JS** | TypeScript Language Service nativo do Monaco (`tsLanguageService.ts`) |
+| **Console de Execução** | [Xterm.js](https://xtermjs.org/) + Fit Addon + WebLinks Addon (multi-instância) |
+| **Formatador** | Clang-Format Wasm + black (Pyodide) |
 | **Armazenamento** | [IndexedDB](https://developer.mozilla.org/pt-BR/docs/Web/API/IndexedDB_API) via biblioteca `idb` |
-| **Offline / PWA** | `vite-plugin-pwa` + Workbox |
+| **Offline / PWA** | `vite-plugin-pwa` + Workbox (precache + CacheFirst de wheels) |
 
 ---
 
@@ -61,38 +63,72 @@ O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que roda 
 ```text
 theprog-editor/
 ├── public/
-│   ├── favicon.svg          # Ícone da aplicação
-│   ├── pwa-192x192.png      # Ícone PWA para telas padrão
-│   └── pwa-512x512.png      # Ícone PWA de alta resolução
+│   ├── runtimes/
+│   │   ├── pyodide-extras/    # wheels vendorizadas (micropip + black + deps)
+│   │   ├── pyodide/           # copiado do node_modules no build
+│   │   └── esbuild/           # copiado do node_modules no build
+│   ├── favicon.svg
+│   ├── pwa-192x192.png
+│   └── pwa-512x512.png
+├── scripts/
+│   └── fetch-pyodide-extras.mjs  # baixa e fixa as wheels puras do Python
 ├── src/
 │   ├── components/
-│   │   ├── common/          # Menus de contexto globais e tela de loading
-│   │   ├── layout/          # TitleBar, Sidebar, EditorArea, TerminalPanel (com abas)
-│   │   └── modals/          # Ajuda, Configurações e Informações do Sistema
+│   │   ├── common/            # menus de contexto, loading, binário/imagem
+│   │   ├── layout/            # TitleBar, Sidebar, EditorArea, TerminalPanel
+│   │   └── modals/            # Ajuda, Configurações (Ambientes) e Sobre
 │   ├── config/
-│   │   └── version.ts       # Constante de versão da aplicação (v0.4.1)
-│   ├── context/             # Estados globais (EditorContext, ThemeContext, DialogContext)
-│   ├── hooks/               # Hooks customizados (usePwaInstall, useNetworkStatus)
+│   │   └── version.ts         # constante de versão da aplicação (v0.5.0)
+│   ├── context/               # Estados globais (EditorContext, ThemeContext, DialogContext)
+│   ├── hooks/                 # Hooks customizados (usePwaInstall, useNetworkStatus)
 │   ├── services/
-│   │   ├── cCompiler.ts     # Pipeline de compilação Clang, cache e despacho para Worker
-│   │   ├── monaco/          # IntelliSense, catálogos C/C++, analisador e snippets
-│   │   │   ├── cLanguageService.ts
-│   │   │   ├── cStdLibCatalog.ts
-│   │   │   ├── cppStdLibCatalog.ts
-│   │   │   ├── cSnippets.ts
-│   │   │   ├── cppSnippets.ts
-│   │   │   └── cSymbolAnalyzer.ts
-│   │   ├── storage.ts       # Camada de persistência IndexedDB
-│   │   └── vmManager.ts     # Gerenciador de terminais, abas e fluxo de execução
-│   ├── types/               # Interfaces TypeScript (FileItem, EditorTab, VMStatus, ConsoleTab)
-│   ├── utils/               # Utilitários (formatCode via clang-format)
-│   └── workers/             # Web Workers isolados
-│       ├── compilerWorker.ts# Worker dedicado para compilação assíncrona Clang
-│       └── wasmWorker.ts    # Worker dedicado para execução WASI com stdin bloqueante
-├── index.html               # Entry point com script de redirecionamento canônico
-├── package.json             # Dependências e scripts de build (v0.4.1)
-└── vite.config.ts           # Configurações de PWA, headers COOP/COEP e build
+│   │   ├── languages/         # registry de linguagens + capacidade de execução
+│   │   ├── runtimes/          # adapters: clangRuntime, pythonRuntime, jsRuntime, manager
+│   │   ├── monaco/            # IntelliSense C/C++, Python e TS/JS
+│   │   ├── cCompiler.ts       # pipeline Clang (cache + worker)
+│   │   ├── pythonPackages.ts  # persistência offline de wheels Python
+│   │   ├── localFs.ts         # leitura/escrita no disco + detecção de binários
+│   │   ├── storage.ts         # camada de persistência IndexedDB
+│   │   └── vmManager.ts       # console, status e orquestração de execução
+│   ├── types/                 # Interfaces TypeScript
+│   ├── utils/                 # Utilitários (formatCode, autoIndent)
+│   └── workers/               # compilerWorker, wasmWorker, pythonWorker, jsWorker, bundlerWorker
+├── index.html
+├── package.json
+└── vite.config.ts
 ```
+
+---
+
+## 🐍 Pacotes Python offline
+
+1. Com internet, abra **Configurações → Ambientes & Sistema → Ambiente Python** e instale pacotes (ex.: `numpy requests`).
+2. O editor baixa a wheel, instala no Pyodide e **persiste os arquivos `.whl`** em `.theprog/py-packages/` (diretório local) ou no IndexedDB (sandbox).
+3. Sem internet, ao abrir o mesmo projeto, os pacotes são reinstalados automaticamente a partir do cache.
+
+Observação: pacotes com extensões nativas seguem a ABI do Pyodide; ao atualizar a versão do Pyodide, o manifesto é invalidado e os pacotes precisam ser reinstalados uma vez com internet.
+
+---
+
+## ✅ Verificação de execução offline (E2E)
+
+O projeto inclui uma verificação automatizada que instala o Service Worker, aguarda o precache completo e então **simula falta de internet** (via CDP) para executar C, JS, TS e Python offline de verdade, além de reinstalar pacotes Python a partir do cache:
+
+```bash
+npm run build
+npm run e2e:offline
+```
+
+O script usa o Chrome/Edge instalado na máquina (defina `CHROME_PATH` se necessário) e valida:
+
+- Service Worker controlando a página e `crossOriginIsolated` ativo (SharedArrayBuffer);
+- todos os assets de runtime respondendo `200` a partir do cache offline;
+- execução de C, JavaScript, TypeScript e Python com código de saída `0`;
+- reinstalação e `import` de pacotes Python (micropip) offline.
+
+> O hook de QA usado pelo script (`window.__theprogDebug`) só é exposto em `localhost`/`127.0.0.1` com o parâmetro `?debug=1`.
+
+> **Atualizações:** quando uma nova versão do Service Worker assume o controle, a página é recarregada automaticamente para manter o bundle e o precache sempre consistentes (evita falhas de execução offline após um deploy).
 
 ---
 
@@ -114,12 +150,17 @@ theprog-editor/
    npm install
    ```
 
-3. Inicie o servidor de desenvolvimento:
+3. (Opcional) Atualize as wheels puras do Python:
+   ```bash
+   node scripts/fetch-pyodide-extras.mjs --force
+   ```
+
+4. Inicie o servidor de desenvolvimento:
    ```bash
    npm run dev
    ```
 
-4. Acesse no navegador:
+5. Acesse no navegador:
    ```text
    http://localhost:5173/theprog-editor/
    ```
@@ -144,10 +185,9 @@ Todas as respostas HTTP recebem os cabeçalhos de segurança para ativar o `Shar
 Qualquer acesso originado de servidores ou espelhos não oficiais (como `theprogmatheus.github.io`) é redirecionado imediatamente para o endereço oficial **`https://matheus.eti.br/theprog-editor`**.
 
 ### 📱 Instalação como Aplicativo (PWA)
-O TheProg Editor cumpre todos os requisitos do padrão Progressive Web App:
-- **Desktop & Mobile:** Pode ser instalado no Google Chrome, Microsoft Edge, Safari e navegadores móveis pelo botão **"Instalar App"** na barra superior ou pelo menu de configurações.
-- **Janela Própria:** Executa em modo *standalone*, integrado à barra de tarefas do sistema operacional e sem interface do navegador.
-- **100% Offline:** Após o primeiro acesso, o Service Worker garante funcionamento completo mesmo sem conexão à rede.
+- **Desktop & Mobile:** instalável no Google Chrome, Microsoft Edge, Safari e navegadores móveis pelo botão **"Instalar App"**.
+- **Janela Própria:** executa em modo *standalone*, integrado à barra de tarefas do sistema operacional.
+- **Offline após o primeiro acesso:** o Service Worker mantém todos os ambientes, wheels e assets em cache.
 
 ---
 

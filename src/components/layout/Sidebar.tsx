@@ -5,6 +5,8 @@ import {
   ChevronDown,
   ChevronRight,
   FileCode,
+  FileWarning,
+  FileImage,
   Trash2,
   Edit2,
   Folder,
@@ -205,6 +207,12 @@ export const Sidebar: React.FC = () => {
     if (file.isFolder) {
       return <Folder className="w-4 h-4 text-amber-500 shrink-0" />;
     }
+    if (file.kind === 'binary') {
+      return <FileWarning className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />;
+    }
+    if (file.kind === 'image') {
+      return <FileImage className="w-4 h-4 text-pink-500 dark:text-pink-400 shrink-0" />;
+    }
     const lower = file.name.toLowerCase();
     if (lower.endsWith('.c')) {
       return (
@@ -224,6 +232,34 @@ export const Sidebar: React.FC = () => {
       return (
         <span className="w-4 h-4 rounded bg-purple-900/30 text-purple-600 dark:text-purple-300 text-[10px] font-bold flex items-center justify-center shrink-0 border border-purple-500/40">
           H
+        </span>
+      );
+    }
+    if (lower.endsWith('.py')) {
+      return (
+        <span className="w-4 h-4 rounded bg-sky-500/20 text-sky-600 dark:text-sky-300 text-[9px] font-bold flex items-center justify-center shrink-0 border border-sky-500/40">
+          PY
+        </span>
+      );
+    }
+    if (lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) {
+      return (
+        <span className="w-4 h-4 rounded bg-yellow-400/20 text-yellow-700 dark:text-yellow-300 text-[9px] font-bold flex items-center justify-center shrink-0 border border-yellow-500/40">
+          JS
+        </span>
+      );
+    }
+    if (lower.endsWith('.ts')) {
+      return (
+        <span className="w-4 h-4 rounded bg-blue-500/20 text-blue-700 dark:text-blue-300 text-[9px] font-bold flex items-center justify-center shrink-0 border border-blue-500/40">
+          TS
+        </span>
+      );
+    }
+    if (lower.endsWith('.md') || lower.endsWith('.markdown')) {
+      return (
+        <span className="w-4 h-4 rounded bg-neutral-500/20 text-neutral-600 dark:text-neutral-300 text-[8px] font-bold flex items-center justify-center shrink-0 border border-neutral-500/40">
+          MD
         </span>
       );
     }

@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { FileItem, UserSettings, RecentWorkspace } from '../types/editor';
 
 const DB_NAME = 'theprog-editor-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -32,6 +32,54 @@ int main() {
 }
 `,
   },
+  {
+    id: 'f-main-py',
+    name: 'main.py',
+    path: '/main.py',
+    isFolder: false,
+    parentId: null,
+    language: 'python',
+    updatedAt: Date.now(),
+    content: `def main():
+    nome = input("Digite seu nome: ")
+    print(f"Olá, {nome}! Bem-vindo ao TheProg Editor.")
+
+
+if __name__ == "__main__":
+    main()
+`,
+  },
+  {
+    id: 'f-index-js',
+    name: 'index.js',
+    path: '/index.js',
+    isFolder: false,
+    parentId: null,
+    language: 'javascript',
+    updatedAt: Date.now(),
+    content: `function main() {
+  const nome = input("Digite seu nome: ");
+  console.log(\`Olá, \${nome}! Bem-vindo ao TheProg Editor.\`);
+}
+
+main();
+`,
+  },
+  {
+    id: 'f-main-ts',
+    name: 'main.ts',
+    path: '/main.ts',
+    isFolder: false,
+    parentId: null,
+    language: 'typescript',
+    updatedAt: Date.now(),
+    content: `function soma(a: number, b: number): number {
+  return a + b;
+}
+
+console.log("2 + 3 =", soma(2, 3));
+`,
+  },
 ];
 
 export async function getDb(): Promise<IDBPDatabase> {
@@ -51,6 +99,9 @@ export async function getDb(): Promise<IDBPDatabase> {
         }
         if (!db.objectStoreNames.contains('recent_workspaces')) {
           db.createObjectStore('recent_workspaces', { keyPath: 'id' });
+        }
+        if (!db.objectStoreNames.contains('runtime_assets')) {
+          db.createObjectStore('runtime_assets');
         }
       },
     });
@@ -170,4 +221,25 @@ export async function updateWorkspaceLastOpened(id: string): Promise<void> {
   } catch (err) {
     console.error('Erro ao atualizar data de acesso do workspace:', err);
   }
+}
+
+export async function getRuntimeAsset<T>(key: string): Promise<T | undefined> {
+  const db = await getDb();
+  return (await db.get('runtime_assets', key)) as T | undefined;
+}
+
+export async function setRuntimeAsset(key: string, value: unknown): Promise<void> {
+  const db = await getDb();
+  await db.put('runtime_assets', value, key);
+}
+
+export async function deleteRuntimeAsset(key: string): Promise<void> {
+  const db = await getDb();
+  await db.delete('runtime_assets', key);
+}
+
+export async function getRuntimeAssetKeys(prefix: string): Promise<string[]> {
+  const db = await getDb();
+  const keys = await db.getAllKeys('runtime_assets');
+  return keys.map((key) => String(key)).filter((key) => key.startsWith(prefix));
 }

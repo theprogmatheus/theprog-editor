@@ -12,6 +12,7 @@ import {
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
+import { getRunCapability } from '../../services/languages/runCapability';
 
 interface MenuPosition {
   x: number;
@@ -28,9 +29,11 @@ export const GlobalContextMenu: React.FC<GlobalContextMenuProps> = ({
   onOpenHelp,
 }) => {
   const [position, setPosition] = useState<MenuPosition | null>(null);
-  const { createNewFile, runActiveFile, formatActiveFile, resetTerminal } = useEditor();
+  const { createNewFile, runActiveFile, formatActiveFile, resetTerminal, activeFile, runtimes } =
+    useEditor();
   const { theme, toggleTheme } = useTheme();
   const { showPrompt } = useDialog();
+  const capability = getRunCapability(activeFile, runtimes);
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
@@ -88,7 +91,7 @@ export const GlobalContextMenu: React.FC<GlobalContextMenuProps> = ({
     const filename = await showPrompt({
       title: 'Criar Novo Arquivo',
       message: 'Digite o nome do novo arquivo com a extensão:',
-      placeholder: 'ex: main.c, utils.c, helper.h',
+      placeholder: 'ex: main.c, app.py, index.js, main.ts',
       confirmText: 'Criar',
       cancelText: 'Cancelar',
     });
@@ -115,10 +118,13 @@ export const GlobalContextMenu: React.FC<GlobalContextMenuProps> = ({
           setPosition(null);
           runActiveFile();
         }}
-        className="w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left"
+        title={capability.canRun ? `${capability.label} (F5)` : capability.reason}
+        className={`w-full px-3 py-1.5 flex items-center space-x-2.5 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left ${
+          capability.canRun ? '' : 'opacity-50'
+        }`}
       >
         <Play className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 fill-current" />
-        <span>Compilar & Executar (F5)</span>
+        <span>{capability.label} (F5)</span>
       </button>
 
       <button

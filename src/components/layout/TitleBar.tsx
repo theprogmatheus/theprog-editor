@@ -4,6 +4,7 @@ import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { usePwaInstall } from '../../hooks/usePwaInstall';
+import { getRunCapability } from '../../services/languages/runCapability';
 import { APP_VERSION } from '../../config/version';
 
 interface TitleBarProps {
@@ -15,8 +16,8 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
     runActiveFile,
     stopExecution,
     vmStatus,
-    isSystemReady,
-    systemProgressPercent,
+    activeFile,
+    runtimes,
     fontSize,
     increaseFontSize,
     decreaseFontSize,
@@ -27,6 +28,8 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
   const { theme, toggleTheme } = useTheme();
   const isOnline = useNetworkStatus();
   const { isInstallable, installApp } = usePwaInstall();
+
+  const capability = getRunCapability(activeFile, runtimes);
 
   return (
     <header className="h-9 w-full bg-[#f3f3f3] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#252526] flex items-center justify-between px-3 select-none text-xs text-[#333333] dark:text-[#cccccc] transition-colors shrink-0">
@@ -76,20 +79,20 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
         ) : (
           <button
             onClick={() => runActiveFile()}
-            disabled={!isSystemReady}
+            disabled={!capability.canRun}
             title={
-              !isSystemReady
-                ? `Aguarde o carregamento do Sistema (${systemProgressPercent}%)... O botão será ativado assim que 100% pronto.`
-                : 'Compilar e Executar Código (F5)'
+              capability.canRun
+                ? `${capability.label} (F5)`
+                : capability.reason || 'Execução indisponível para este arquivo'
             }
             className={`flex items-center space-x-1.5 px-3 h-7 rounded font-semibold text-xs text-white shadow-xs transition-all whitespace-nowrap ${
-              !isSystemReady
+              !capability.canRun
                 ? 'bg-neutral-400 dark:bg-neutral-600 opacity-50 cursor-not-allowed'
                 : 'bg-[#238636] hover:bg-[#2ea043] active:scale-95 cursor-pointer shadow-sm'
             }`}
           >
             <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Compilar & Executar</span>
+            <span>{capability.label}</span>
           </button>
         )}
 
@@ -127,7 +130,7 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
           title={
             isOnline
               ? 'Conectado à internet (Online)'
-              : 'Sem conexão com a internet (Offline). O TheProg Editor é resistente a oscilações e opera de forma autônoma via PWA.'
+              : 'Sem conexão com a internet (Offline). Após o primeiro acesso, o TheProg Editor opera de forma autônoma via PWA.'
           }
           className={`hidden md:flex items-center justify-center w-6 h-6 rounded border transition-colors ${
             isOnline

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
+import * as monaco from 'monaco-editor';
 import { X, FileCode, Plus } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -7,18 +8,10 @@ import { useDialog } from '../../context/DialogContext';
 
 import { formatCode } from '../../utils/formatter';
 import { setWorkspaceFilesProvider } from '../../services/monaco/cLanguageService';
-
-const getMonacoLanguage = (lang: string, fileName?: string): string => {
-  const name = (fileName || '').toLowerCase();
-  if (name.endsWith('.c')) return 'c';
-  if (name.endsWith('.cpp') || name.endsWith('.cc') || name.endsWith('.cxx') || name.endsWith('.hpp')) return 'cpp';
-  switch (lang) {
-    case 'c': return 'c';
-    case 'cpp': return 'cpp';
-    case 'h': return 'cpp';
-    default: return 'plaintext';
-  }
-};
+import { syncWorkspaceTsFiles } from '../../services/monaco/tsLanguageService';
+import { getMonacoLanguage, isTextFileKind } from '../../services/languages/registry';
+import { UnsupportedFileView } from '../common/UnsupportedFileView';
+import { ImagePreview } from '../common/ImagePreview';
 
 export const EditorArea: React.FC = () => {
   const {
@@ -44,9 +37,16 @@ export const EditorArea: React.FC = () => {
   const editorRef = useRef<any>(null);
 
   // Sincroniza os arquivos do Workspace com o Language Service para resolução de #include "..."
+  // e disponibiliza arquivos TS/JS para o IntelliSense entre arquivos (com debounce).
   useEffect(() => {
     setWorkspaceFilesProvider(() => files);
-    return () => setWorkspaceFilesProvider(null);
+    const timer = setTimeout(() => {
+      syncWorkspaceTsFiles(monaco, files);
+    }, 800);
+    return () => {
+      clearTimeout(timer);
+      setWorkspaceFilesProvider(null);
+    };
   }, [files]);
 
   // Estados de Drag and Drop de Abas
@@ -83,7 +83,7 @@ export const EditorArea: React.FC = () => {
     const filename = await showPrompt({
       title: 'Criar Novo Arquivo',
       message: 'Digite o nome do novo arquivo com a extensão:',
-      placeholder: 'ex: main.c, utils.c, helper.h',
+      placeholder: 'ex: main.c, app.py, index.js, main.ts',
       confirmText: 'Criar',
       cancelText: 'Cancelar',
     });
@@ -226,12 +226,33 @@ export const EditorArea: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const monacoLanguage = activeFile ? getMonacoLanguage(activeFile.language, activeFile.name) : 'plaintext';
+  const monacoLanguage = activeFile ? getMonacoLanguage(activeFile.language) : 'plaintext';
+
+  const [forcedText, setForcedText] = useState<{ fileId: string; content: string } | null>(null);
+
+  useEffect(() => {
+    setForcedText(null);
+  }, [activeFileId]);
+
+  const handleForceText = async () => {
+    if (!activeFile) return;
+    try {
+      const handle = activeFile.handle as FileSystemFileHandle | undefined;
+      if (!handle || typeof handle.getFile !== 'function') return;
+      const diskFile = await handle.getFile();
+      const content = await diskFile.text();
+      setForcedText({ fileId: activeFile.id, content });
+    } catch (err) {
+      console.warn('Não foi possível abrir o arquivo como texto:', err);
+    }
+  };
+
+  const isForcedTextView = Boolean(forcedText && forcedText.fileId === activeFile?.id);
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden bg-white dark:bg-[#1e1e1e] transition-colors relative">
+    <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden bg-white dark:bg-[#1e1e1e] transition-colors relative">
       {/* Barra de Abas - SEMPRE VISÍVEL NO DOM */}
-      <div className="h-9 flex items-center bg-[#ececec] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#202020] overflow-x-auto select-none no-scrollbar touch-pan-x">
+      <div className="h-9 min-h-9 shrink-0 flex items-center bg-[#ececec] dark:bg-[#181818] border-b border-[#e5e5e5] dark:border-[#202020] overflow-x-auto select-none no-scrollbar touch-pan-x">
         {tabs.map((tab, index) => {
           const isActive = tab.fileId === activeFileId;
           return (
@@ -359,20 +380,22 @@ export const EditorArea: React.FC = () => {
 
       {/* Corpo Central: Monaco Editor OU Placeholder "Nenhum arquivo aberto" */}
       {activeFile ? (
-        <div className="flex-1 w-full h-full relative">
+        isTextFileKind(activeFile.kind) || isForcedTextView ? (
+          <div className="flex-1 w-full h-full min-h-0 relative">
           <Editor
             height="100%"
             path={activeFile.path || activeFile.name}
             language={monacoLanguage}
             theme={theme === 'dark' ? 'vs-dark' : 'light'}
-            value={activeFile.content || ''}
+            value={isForcedTextView ? forcedText!.content : activeFile.content || ''}
             onChange={(value) => {
-              if (value !== undefined) {
+              if (value !== undefined && !isForcedTextView) {
                 updateFileContent(activeFile.id, value);
               }
             }}
             onMount={handleEditorDidMount}
             options={{
+              readOnly: isForcedTextView,
               fontSize,
               fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
               fontLigatures: true,
@@ -414,7 +437,12 @@ export const EditorArea: React.FC = () => {
               </div>
             }
           />
-        </div>
+          </div>
+        ) : activeFile.kind === 'image' ? (
+          <ImagePreview file={activeFile} />
+        ) : (
+          <UnsupportedFileView file={activeFile} onForceText={handleForceText} />
+        )
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-[#616161] dark:text-[#858585] select-none p-6 transition-colors text-center">
           <FileCode className="w-16 h-16 text-[#cccccc] dark:text-[#333333] mb-4 stroke-1" />

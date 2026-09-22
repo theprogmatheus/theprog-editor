@@ -1,8 +1,6 @@
-export type SupportedLanguage =
-  | 'c'
-  | 'cpp'
-  | 'h'
-  | 'plaintext';
+import type { FileKind, LanguageId } from '../services/languages/types';
+
+export type SupportedLanguage = LanguageId;
 
 export interface FileItem {
   id: string;
@@ -13,6 +11,8 @@ export interface FileItem {
   parentId: string | null;
   language: SupportedLanguage;
   updatedAt: number;
+  kind?: FileKind;
+  size?: number;
   handle?: FileSystemHandle;
 }
 

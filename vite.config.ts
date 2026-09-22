@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -25,6 +26,16 @@ export default defineConfig({
     },
     react(),
     tailwindcss(),
+    viteStaticCopy({
+      targets: [
+        { src: 'node_modules/pyodide/pyodide.mjs', dest: 'runtimes/pyodide', rename: { stripBase: true } },
+        { src: 'node_modules/pyodide/pyodide.asm.mjs', dest: 'runtimes/pyodide', rename: { stripBase: true } },
+        { src: 'node_modules/pyodide/pyodide.asm.wasm', dest: 'runtimes/pyodide', rename: { stripBase: true } },
+        { src: 'node_modules/pyodide/python_stdlib.zip', dest: 'runtimes/pyodide', rename: { stripBase: true } },
+        { src: 'node_modules/pyodide/pyodide-lock.json', dest: 'runtimes/pyodide', rename: { stripBase: true } },
+        { src: 'node_modules/esbuild-wasm/esbuild.wasm', dest: 'runtimes/esbuild', rename: { stripBase: true } },
+      ],
+    }),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
@@ -41,9 +52,10 @@ export default defineConfig({
         'v86/**',
       ],
       manifest: {
-        name: 'TheProg Editor - IDE Offline',
+        name: 'TheProg Editor - IDE Multilinguagem',
         short_name: 'TheProg',
-        description: 'IDE PWA 100% Offline com compilação nativa C/C++ e ambiente Linux',
+        description:
+          'IDE PWA multilinguagem (C, C++, Python, JavaScript e TypeScript) com compilação e execução no navegador; offline após o primeiro acesso',
         theme_color: '#1e1e1e',
         background_color: '#1e1e1e',
         display: 'standalone',
@@ -81,7 +93,9 @@ export default defineConfig({
       },
       injectManifest: {
         maximumFileSizeToCacheInBytes: 150 * 1024 * 1024,
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,tar,bin,ttf,woff,woff2,webmanifest,json}'],
+        globPatterns: [
+          '**/*.{js,mjs,css,html,ico,png,svg,wasm,tar,bin,ttf,woff,woff2,webmanifest,json,zip,whl}',
+        ],
       },
     }),
   ],

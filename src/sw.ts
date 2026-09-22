@@ -69,6 +69,18 @@ const isolatedNavigationHandler: RouteHandlerCallback = async (params) => {
 
 registerRoute(new NavigationRoute(isolatedNavigationHandler));
 
+// Cache de wheels Python (micropip) para reinstalação offline de pacotes
+registerRoute(
+  /.*\.whl$/,
+  new CacheFirst({
+    cacheName: 'python-wheels-cache',
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      coopCoepPlugin,
+    ],
+  })
+);
+
 // Cache de arquivos binários grandes (Wasm, Tar, Bin)
 registerRoute(
   /.*\.(?:wasm|tar|bin)$/,
@@ -104,9 +116,9 @@ registerRoute(
   })
 );
 
-// Cache com prioridade para scripts e estilos
+// Cache com prioridade para scripts e estilos (inclui módulos .mjs dos runtimes)
 registerRoute(
-  /.*\.(?:js|css)$/,
+  /.*\.(?:js|mjs|css)$/,
   new CacheFirst({
     cacheName: 'static-scripts-styles-cache',
     plugins: [

@@ -4,7 +4,6 @@ import type {
   FileItem,
   EditorTab,
   VMStatus,
-  SupportedLanguage,
   ActiveWorkspace,
   RecentWorkspace,
 } from '../types/editor';
@@ -34,12 +33,18 @@ import {
 } from '../services/localFs';
 import { vmManager } from '../services/vmManager';
 import { formatCode } from '../utils/formatter';
+import { runtimeManager } from '../services/runtimes/manager';
+import { pythonRuntime } from '../services/runtimes/pythonRuntime';
+import type { RuntimeProgressMap } from '../services/runtimes/types';
+import type { RunPlan } from '../services/languages/types';
+import { getRunCapability } from '../services/languages/runCapability';
 import {
-  preloadCompiler,
-  subscribeCompilerProgress,
-  getCompilerProgress,
-  type CompilerProgress,
-} from '../services/cCompiler';
+  detectLanguage,
+  getRuntimeForLanguage,
+  isLikelyBinaryByName,
+  isTextFileKind,
+} from '../services/languages/registry';
+import { loadPythonWheels, savePythonWheel } from '../services/pythonPackages';
 
 export type SystemStatus = 'loading' | 'ready' | 'running' | 'error';
 export type AppScreen = 'welcome' | 'editor';
@@ -51,8 +56,8 @@ interface EditorContextType {
   tabs: EditorTab[];
   vmStatus: VMStatus;
   vmStatusMessage: string;
-  compilerProgress: CompilerProgress;
-  preloadCompiler: () => Promise<void>;
+  runtimes: RuntimeProgressMap;
+  preloadRuntimes: () => Promise<void>;
   isSystemReady: boolean;
   systemStatus: SystemStatus;
   systemProgressPercent: number;
@@ -122,9 +127,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [vmStatus, setVmStatus] = useState<VMStatus>('idle');
-  const [vmStatusMessage, setVmStatusMessage] = useState<string>('Inicializando Linux...');
-  const [compilerProgress, setCompilerProgress] = useState<CompilerProgress>(getCompilerProgress());
-  
+  const [vmStatusMessage, setVmStatusMessage] = useState<string>('Inicializando ambientes...');
+  const [runtimes, setRuntimes] = useState<RuntimeProgressMap>(runtimeManager.getProgress());
   // Telas
   const [currentScreen, setCurrentScreen] = useState<AppScreen>('welcome');
   const [hasEnteredEditorSession, setHasEnteredEditorSession] = useState<boolean>(false);
@@ -298,19 +302,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const saveTimeouts = useRef<Map<string, any>>(new Map());
   const currentWsKeyRef = useRef<string>('');
+  const activeWorkspaceKeyRef = useRef<string>('sandbox');
 
   const handleSetSidebarWidth = (w: number) => {
     const clamped = Math.max(180, Math.min(600, w));
     setSidebarWidth(clamped);
     localStorage.setItem('theprog_sidebar_width', clamped.toString());
-  };
-
-  const detectLanguage = (filename: string): SupportedLanguage => {
-    const lower = filename.toLowerCase();
-    if (lower.endsWith('.c')) return 'c';
-    if (lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx')) return 'cpp';
-    if (lower.endsWith('.h') || lower.endsWith('.hpp')) return 'h';
-    return 'plaintext';
   };
 
   // Carrega Workspace Local (diretório físico no OS)
@@ -410,8 +407,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     currentWsKeyRef.current = wsKey;
     setIsStorageLoaded(true);
 
-    preloadCompiler().catch((err) => {
-      console.warn('Pré-carregamento do compilador adiado:', err);
+    runtimeManager.preloadAll().catch((err) => {
+      console.warn('Pré-carregamento dos ambientes adiado:', err);
     });
   }, []);
 
@@ -546,8 +543,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     currentWsKeyRef.current = wsKey;
     setIsStorageLoaded(true);
 
-    preloadCompiler().catch((err) => {
-      console.warn('Pré-carregamento do compilador adiado:', err);
+    runtimeManager.preloadAll().catch((err) => {
+      console.warn('Pré-carregamento dos ambientes adiado:', err);
     });
   }, []);
 
@@ -636,9 +633,9 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Inicialização da aplicação: gerencia workspaces recentes, decisão de tela e pré-carrega o sistema
   useEffect(() => {
-    // Inicia imediatamente o carregamento do compilador Clang e Linux upfront
-    preloadCompiler().catch((err) => {
-      console.warn('Pré-carregamento inicial do compilador adiado:', err);
+    // Inicia imediatamente o carregamento dos ambientes (Clang, Python e JS/TS) em background
+    runtimeManager.preloadAll().catch((err) => {
+      console.warn('Pré-carregamento inicial dos ambientes adiado:', err);
     });
 
     getRecentWorkspaces().then(async (recents) => {
@@ -677,13 +674,13 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     });
 
-    const unsubscribeCompiler = subscribeCompilerProgress((prog) => {
-      setCompilerProgress(prog);
+    const unsubscribeRuntimes = runtimeManager.subscribe((progress) => {
+      setRuntimes(progress);
     });
 
     return () => {
       unsubscribeStatus();
-      unsubscribeCompiler();
+      unsubscribeRuntimes();
     };
   }, [loadLocalWorkspace, loadSandboxWorkspace]);
 
@@ -730,7 +727,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               };
               updated.push(newItem);
 
-              if (!meta.isFolder && meta.size <= 5 * 1024 * 1024) {
+              if (!meta.isFolder && meta.size <= 5 * 1024 * 1024 && !isLikelyBinaryByName(name)) {
                 getFileHandleByPath(dirHandle, snapPath)
                   .then((fh) => fh?.getFile())
                   .then((file) => file?.text())
@@ -766,7 +763,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const snap = snapshot.get(f.path);
             if (!snap) continue;
 
-            if (snap.lastModified > f.updatedAt && !isRecentInternalWrite(f.path)) {
+            if (snap.lastModified > f.updatedAt && !isRecentInternalWrite(f.path) && !isLikelyBinaryByName(f.name)) {
               const isDirty = tabs.some((t) => (t.fileId === f.id || t.filePath === f.path) && t.isDirty);
               if (!isDirty) {
                 hasModifications = true;
@@ -895,6 +892,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const saveActiveFile = useCallback(async () => {
     if (!activeFile || activeFile.isFolder) return;
+    if (!isTextFileKind(activeFile.kind)) return;
     const fileId = activeFile.id;
 
     if (saveTimeouts.current.has(fileId)) {
@@ -918,6 +916,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [activeFile, activeWorkspace]);
 
   const updateFileContent = useCallback((fileId: string, content: string) => {
+    if (!isTextFileKind(files.find((f) => f.id === fileId)?.kind)) return;
     setFiles((prev) =>
       prev.map((f) => {
         if (f.id === fileId) {
@@ -964,7 +963,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }, autoSaveDelay);
 
     saveTimeouts.current.set(fileId, timer);
-  }, [activeWorkspace, autoSave, autoSaveDelay]);
+  }, [files, activeWorkspace, autoSave, autoSaveDelay]);
 
   const createNewFile = useCallback(
     async (name: string, isFolder: boolean = false, parentId: string | null = null): Promise<string> => {
@@ -1130,8 +1129,11 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [files, activeWorkspace]
   );
 
+  const runtimeAggregate = runtimeManager.getAggregate();
+  const clangProgress = runtimes.clang;
+
   const isSystemReady =
-    compilerProgress.status === 'ready' &&
+    clangProgress?.status === 'ready' &&
     vmStatus !== 'booting' &&
     vmStatus !== 'downloading' &&
     !isLinuxLoading;
@@ -1139,24 +1141,24 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const systemStatus: SystemStatus =
     vmStatus === 'running'
       ? 'running'
-      : compilerProgress.status === 'error' || vmStatus === 'error'
+      : clangProgress?.status === 'error' || vmStatus === 'error'
       ? 'error'
       : isSystemReady
       ? 'ready'
       : 'loading';
 
-  const systemProgressPercent = compilerProgress.status === 'ready' ? 100 : compilerProgress.percent;
+  const systemProgressPercent = runtimeAggregate.percent;
 
   const systemStatusMessage =
     systemStatus === 'ready'
-      ? 'Sistema Pronto (Clang e Linux)'
+      ? 'Sistema pronto'
       : systemStatus === 'running'
-      ? 'Sistema Executando...'
+      ? 'Sistema executando...'
       : systemStatus === 'error'
-      ? compilerProgress.error || vmStatusMessage || 'Erro no Sistema'
-      : compilerProgress.status === 'preloading'
-      ? `Carregando Sistema (${compilerProgress.percent}%)...`
-      : 'Inicializando Sistema...';
+      ? clangProgress?.error || vmStatusMessage || 'Erro no sistema'
+      : runtimeAggregate.isLoading
+      ? `Preparando ambientes (${runtimeAggregate.percent}%)...`
+      : 'Inicializando ambientes...';
 
   function getFilesInProjectScope(filesList: FileItem[], activeItem: FileItem): FileItem[] {
     if (!activeItem.parentId) {
@@ -1185,19 +1187,24 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       vmManager.clearTerminal();
       window.dispatchEvent(new CustomEvent('theprog-focus-console'));
 
-      if (!isSystemReady) {
-        vmManager.emitOutput(
-          `\r\n\x1b[33m[TheProg] Aguarde: O Sistema ainda está carregando (${systemProgressPercent}%)...\x1b[0m\r\n`
+      if (!activeFile || activeFile.isFolder) {
+        vmManager.setActiveTab('environment');
+        vmManager.emitEnvironmentOutput(
+          '\r\n\x1b[31m[Erro: Nenhum arquivo aberto para executar]\x1b[0m\r\n'
         );
         return;
       }
 
-      if (!activeFile || activeFile.isFolder) {
-        vmManager.emitOutput('\r\n\x1b[31mErro: Nenhum arquivo aberto para executar.\x1b[0m\r\n');
+      const codeToRun = overrideContent !== undefined ? overrideContent : (activeFile.content || '');
+
+      const capability = getRunCapability({ ...activeFile, content: codeToRun }, runtimes);
+      if (!capability.canRun) {
+        vmManager.setActiveTab('environment');
+        vmManager.emitEnvironmentOutput(
+          `\r\n\x1b[33m[${capability.reason || 'Execução indisponível para este arquivo'}]\x1b[0m\r\n`
+        );
         return;
       }
-
-      const codeToRun = overrideContent !== undefined ? overrideContent : (activeFile.content || '');
 
       // Salva imediatamente antes da execução (à prova de erros, independente de autoSave)
       if (saveTimeouts.current.has(activeFile.id)) {
@@ -1219,8 +1226,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const baseDirPath = parentFolder ? parentFolder.path : '';
 
       const folderFiles = new Map<string, string>();
-      const encoder = new TextEncoder();
-      const vfsFiles: { path: string; data: Uint8Array }[] = [];
+      let entryRelPath = activeFile.name;
 
       for (const f of scopedFiles) {
         const content = f.id === activeFile.id ? codeToRun : (f.content || '');
@@ -1228,15 +1234,27 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           ? f.path.slice(baseDirPath.length + 1)
           : (f.path.startsWith('/') ? f.path.slice(1) : f.name);
 
+        if (f.id === activeFile.id) {
+          entryRelPath = relPath;
+        }
         folderFiles.set(relPath, content);
-        vfsFiles.push({
-          path: relPath,
-          data: encoder.encode(content),
-        });
       }
+
+      if (!folderFiles.has(entryRelPath)) {
+        folderFiles.set(entryRelPath, codeToRun);
+      }
+
+      // Chave do workspace desta execução: se o usuário trocar de projeto durante a
+      // execução, os arquivos sincronizados não devem contaminar o novo workspace.
+      const runWorkspaceKey =
+        activeWorkspace.type === 'local' ? `local_${activeWorkspace.name}` : 'sandbox';
 
       // Sincronização bidirecional do sistema de arquivos após execução WASI
       const handleFilesUpdated = (syncedFiles: { path: string; data: Uint8Array; isNew?: boolean }[]) => {
+        if (activeWorkspaceKeyRef.current !== runWorkspaceKey) {
+          return;
+        }
+
         const decoder = new TextDecoder('utf-8', { fatal: false });
 
         setFiles((prevFiles) => {
@@ -1325,13 +1343,39 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       };
 
-      vmManager.runCode(activeFile.name, folderFiles, compilerFlags, vfsFiles, handleFilesUpdated);
+      const runtime = getRuntimeForLanguage(activeFile.language);
+      if (!runtime) {
+        vmManager.setActiveTab('environment');
+        vmManager.emitEnvironmentOutput(
+          `\r\n\x1b[33m[Linguagem '${activeFile.language}' não suportada para execução]\x1b[0m\r\n`
+        );
+        return;
+      }
+
+      const statusMessage =
+        runtime === 'clang'
+          ? `Compilando ${activeFile.name}...`
+          : runtime === 'python'
+          ? `Interpretando ${activeFile.name}...`
+          : `Executando ${activeFile.name}...`;
+
+      const plan: RunPlan = {
+        runtime,
+        language: activeFile.language,
+        entryFile: entryRelPath,
+        files: folderFiles,
+        args: runtime === 'clang' ? compilerFlags : [],
+        statusMessage,
+      };
+
+      vmManager.run(plan, { onFilesUpdated: handleFilesUpdated });
     },
-    [activeFile, files, isSystemReady, systemProgressPercent, compilerFlags, setIsTerminalMinimized, activeWorkspace]
+    [activeFile, files, runtimes, compilerFlags, setIsTerminalMinimized, activeWorkspace]
   );
 
   const formatActiveFile = useCallback(async () => {
     if (!activeFile || activeFile.isFolder) return;
+    if (!isTextFileKind(activeFile.kind)) return;
     const currentCode = activeFile.content || '';
     const formatted = await formatCode(currentCode, activeFile.name);
     if (formatted !== currentCode) {
@@ -1411,6 +1455,41 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [activeWorkspace]
   );
 
+  // Mantém a chave do workspace ativo acessível a callbacks assíncronos de execução
+  useEffect(() => {
+    activeWorkspaceKeyRef.current =
+      activeWorkspace.type === 'local' ? `local_${activeWorkspace.name}` : 'sandbox';
+  }, [activeWorkspace]);
+
+  // Persistência offline de pacotes Python (wheels) no workspace ativo
+  useEffect(() => {
+    pythonRuntime.setWheelSink((wheel) => {
+      const version = pythonRuntime.getPyodideVersion();
+      if (version) {
+        savePythonWheel(activeWorkspace, wheel, version);
+      }
+    });
+    return () => pythonRuntime.setWheelSink(null);
+  }, [activeWorkspace]);
+
+  // Restaura pacotes Python cacheados assim que o runtime fica pronto
+  const isPythonReady = runtimes.python?.status === 'ready';
+  useEffect(() => {
+    if (!isPythonReady || !isStorageLoaded) return;
+    let cancelled = false;
+    (async () => {
+      const version = pythonRuntime.getPyodideVersion();
+      if (!version) return;
+      const wheels = await loadPythonWheels(activeWorkspace, version);
+      if (!cancelled && wheels.length > 0) {
+        pythonRuntime.restoreWheels(wheels);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isPythonReady, activeWorkspace, isStorageLoaded]);
+
   useEffect(() => {
     if (tabs.length > 0) {
       const activeExists = tabs.some((t) => t.fileId === activeFileId);
@@ -1433,8 +1512,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         tabs,
         vmStatus,
         vmStatusMessage,
-        compilerProgress,
-        preloadCompiler,
+        runtimes,
+        preloadRuntimes: () => runtimeManager.preloadAll(),
         isSystemReady,
         systemStatus,
         systemProgressPercent,

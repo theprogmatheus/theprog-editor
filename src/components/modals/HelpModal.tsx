@@ -39,7 +39,7 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
             </div>
             <div className="grid grid-cols-2 gap-2 text-[#555555] dark:text-[#aaaaaa]">
               <div className="flex items-center justify-between p-1.5 rounded bg-white dark:bg-[#252526] border border-[#e0e0e0] dark:border-[#333333]">
-                <span>Compilar & Executar</span>
+                <span>Executar / Compilar</span>
                 <kbd className="px-1.5 py-0.5 rounded bg-[#ececec] dark:bg-[#333333] text-black dark:text-white font-mono text-[10px]">F5</kbd>
               </div>
               <div className="flex items-center justify-between p-1.5 rounded bg-white dark:bg-[#252526] border border-[#e0e0e0] dark:border-[#333333]">
@@ -65,12 +65,14 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] rounded border border-[#e5e5e5] dark:border-[#333333] space-y-1.5">
             <div className="flex items-center space-x-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
               <FolderTree className="w-4 h-4" />
-              <span>2. Gerenciador de Arquivos & Foco em C e C++</span>
+              <span>2. Gerenciador de Arquivos & Linguagens Suportadas</span>
             </div>
             <p className="text-[#666666] dark:text-[#aaaaaa] leading-relaxed">
-              O editor é especializado na criação, compilação e depuração de código em <strong>C</strong> (.c), <strong>C++</strong> (.cpp, .cc) e arquivos de cabeçalho (.h, .hpp).
-              Você pode criar novos arquivos ou pastas, renomeá-los ou excluí-los diretamente pelo explorador.
-              A barra lateral pode ser <strong>redimensionada</strong> arrastando sua borda direita ou <strong>escondida</strong> no botão de colapsar.
+              O editor cria, edita, executa e formata código em <strong>C</strong> (.c), <strong>C++</strong> (.cpp, .cc, .h),
+              <strong> Python</strong> (.py), <strong>JavaScript</strong> (.js, .mjs), <strong>TypeScript</strong> (.ts) e
+              <strong> Markdown</strong> (.md). Você pode criar novos arquivos ou pastas, renomeá-los ou excluí-los diretamente
+              pelo explorador. A barra lateral pode ser <strong>redimensionada</strong> arrastando sua borda direita ou
+              <strong> escondida</strong> no botão de colapsar.
             </p>
           </div>
 
@@ -78,12 +80,16 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] rounded border border-[#e5e5e5] dark:border-[#333333] space-y-1.5">
             <div className="flex items-center space-x-1.5 font-semibold text-amber-600 dark:text-amber-400">
               <Terminal className="w-4 h-4" />
-              <span>3. Console de Execução Autêntico</span>
+              <span>3. Consoles Nativos por Ambiente</span>
             </div>
             <p className="text-[#666666] dark:text-[#aaaaaa] leading-relaxed">
-              O painel inferior conta com um Console de Execução nativo baseado em <strong>Clang WebAssembly + WASI</strong>.
-              Cada pasta no explorador funciona como um escopo isolado de projeto.
-              Ao clicar em <strong>Executar (F5)</strong>, o foco do teclado vai direto para o console, permitindo digitar entradas de <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">scanf()</code> e <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">cin</code> instantaneamente com saída e diagnósticos fiéis.
+              O painel inferior possui duas abas: <strong>Ambiente</strong> (carregamento de runtimes, empacotamento e
+              diagnósticos) e <strong>Execução</strong> (stdin/stdout do programa). Os runtimes rodam isolados em Web Workers:
+              Clang/WASI para C e C++, <strong>Pyodide</strong> para Python e <strong>esbuild</strong> para JavaScript/TypeScript.
+              Ao executar (F5), o foco vai direto para o console, permitindo digitar entradas de
+              <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">scanf()</code>,
+              <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">cin</code> e
+              <code className="bg-[#e8e8e8] dark:bg-[#2d2d2d] px-1 py-0.5 rounded font-mono text-black dark:text-white">input()</code>.
             </p>
           </div>
 
@@ -91,10 +97,12 @@ export const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
           <div className="p-3 bg-[#f8f8f8] dark:bg-[#1e1e1e] rounded border border-[#e5e5e5] dark:border-[#333333] space-y-1.5">
             <div className="flex items-center space-x-1.5 font-semibold text-sky-600 dark:text-sky-400">
               <WifiOff className="w-4 h-4" />
-              <span>4. Resistente a Oscilações e Falta de Internet (PWA & IndexedDB)</span>
+              <span>4. Offline Após o Primeiro Acesso (PWA & IndexedDB)</span>
             </div>
             <p className="text-[#666666] dark:text-[#aaaaaa] leading-relaxed">
-              Após carregar pela primeira vez, o TheProg Editor opera com alta tolerância a instabilidades ou quedas de internet. Todos os arquivos e códigos criados ficam armazenados de forma persistente no seu computador ou no banco de dados local do navegador.
+              No primeiro acesso, os ambientes de execução são baixados e cacheados. Depois disso, o TheProg Editor opera
+              offline: todos os arquivos, códigos e pacotes Python instalados ficam armazenados no seu computador ou no banco
+              de dados local do navegador.
             </p>
           </div>
 

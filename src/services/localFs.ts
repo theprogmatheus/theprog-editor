@@ -1,10 +1,17 @@
-import type { FileItem, SupportedLanguage } from '../types/editor';
+import type { FileItem } from '../types/editor';
+import type { FileKind } from './languages/types';
+import {
+  detectFileKindByExtension,
+  detectFileKindFromBytes,
+  detectLanguage,
+} from './languages/registry';
 
 const IGNORED_DIRECTORIES = new Set([
   '.git',
   '.svn',
   '.hg',
   'node_modules',
+  '.theprog',
 ]);
 
 export function shouldIgnoreEntry(name: string, isDirectory = false): boolean {
@@ -18,14 +25,6 @@ export function shouldIgnoreEntry(name: string, isDirectory = false): boolean {
 
 export function isFileSystemAccessSupported(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
-}
-
-export function detectLanguage(filename: string): SupportedLanguage {
-  const lower = filename.toLowerCase();
-  if (lower.endsWith('.c')) return 'c';
-  if (lower.endsWith('.cpp') || lower.endsWith('.cc') || lower.endsWith('.cxx')) return 'cpp';
-  if (lower.endsWith('.h') || lower.endsWith('.hpp')) return 'h';
-  return 'plaintext';
 }
 
 export async function pickDirectory(): Promise<FileSystemDirectoryHandle> {
@@ -74,6 +73,23 @@ export async function getFileHandleByPath(
 }
 
 /**
+ * Lê os bytes de um arquivo do disco a partir do caminho relativo.
+ */
+export async function readFileFromDisk(
+  rootHandle: FileSystemDirectoryHandle,
+  relPath: string
+): Promise<Uint8Array | null> {
+  try {
+    const handle = await getFileHandleByPath(rootHandle, relPath);
+    if (!handle) return null;
+    const file = await handle.getFile();
+    return new Uint8Array(await file.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Lê recursivamente todos os arquivos e subpastas a partir do handle do diretório.
  * ATENÇÃO: Nunca gera arquivos em diretórios do disco; respeita exatamente o conteúdo real.
  */
@@ -115,18 +131,32 @@ export async function readDirectoryTree(
         items.push(...subItems);
       } else if (entry.kind === 'file') {
         const fileHandle = entry as FileSystemFileHandle;
-        let content = '';
+        let content: string | undefined = '';
         let lastModified = Date.now();
+        let kind: FileKind = 'text';
+        let size = 0;
 
         try {
           const file = await fileHandle.getFile();
           lastModified = file.lastModified;
+          size = file.size;
 
-          // Lê conteúdo de arquivos com tamanho de até 5MB
+          const extensionKind = detectFileKindByExtension(entry.name);
+          kind = extensionKind || 'text';
+
           if (file.size <= 5 * 1024 * 1024) {
-            content = await file.text();
+            if (extensionKind === null) {
+              const head = new Uint8Array(await file.slice(0, 8192).arrayBuffer());
+              kind = detectFileKindFromBytes(head);
+            }
+            if (kind === 'text') {
+              content = await file.text();
+            } else {
+              content = undefined;
+            }
           } else {
-            content = '/* Arquivo muito grande para exibição inline (> 5MB) */';
+            content =
+              kind === 'text' ? '/* Arquivo muito grande para exibição inline (> 5MB) */' : undefined;
           }
         } catch (readErr) {
           console.warn(`Erro ao ler arquivo ${entry.name}:`, readErr);
@@ -140,6 +170,8 @@ export async function readDirectoryTree(
           parentId,
           language: detectLanguage(entry.name),
           updatedAt: lastModified,
+          kind,
+          size,
           content,
           handle: fileHandle,
         });

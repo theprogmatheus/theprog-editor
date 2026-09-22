@@ -1,0 +1,54 @@
+{
+  "pyodideVersion": "314.0.7",
+  "generatedAt": "2026-09-22T18:10:15.450Z",
+  "packages": [
+    {
+      "name": "micropip",
+      "version": "0.11.1",
+      "fileName": "micropip-0.11.1-py3-none-any.whl",
+      "source": "pyodide"
+    },
+    {
+      "name": "click",
+      "version": "8.5.0",
+      "fileName": "click-8.5.0-py3-none-any.whl",
+      "source": "pypi"
+    },
+    {
+      "name": "mypy-extensions",
+      "version": "1.1.0",
+      "fileName": "mypy_extensions-1.1.0-py3-none-any.whl",
+      "source": "pypi"
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "fileName": "packaging-26.3-py3-none-any.whl",
+      "source": "pypi"
+    },
+    {
+      "name": "pathspec",
+      "version": "1.1.1",
+      "fileName": "pathspec-1.1.1-py3-none-any.whl",
+      "source": "pypi"
+    },
+    {
+      "name": "platformdirs",
+      "version": "4.11.12",
+      "fileName": "platformdirs-4.11.12-py3-none-any.whl",
+      "source": "pypi"
+    },
+    {
+      "name": "pytokens",
+      "version": "0.4.1",
+      "fileName": "pytokens-0.4.1-py3-none-any.whl",
+      "source": "pypi"
+    },
+    {
+      "name": "black",
+      "version": "26.5.1",
+      "fileName": "black-26.5.1-py3-none-any.whl",
+      "source": "pypi"
+    }
+  ]
+}

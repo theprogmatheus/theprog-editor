@@ -332,14 +332,14 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           </label>
 
           <span className="text-[11px] font-mono text-[#888888]">
-            Compilação Clang C/C++ Nativa WebAssembly
+            C/C++, Python, JavaScript e TypeScript em WebAssembly
           </span>
         </div>
       </main>
 
       {/* Rodapé institucional */}
       <footer className="h-10 px-6 border-t border-[#e5e5e5] dark:border-[#222222] flex items-center justify-center text-[11px] text-[#888888] bg-white/40 dark:bg-[#181818]/40 shrink-0">
-        <span>TheProg Editor &copy; &bull; Resistente a oscilações e falta de internet &bull; Privacidade Total</span>
+        <span>TheProg Editor &copy; &bull; Offline após o primeiro acesso &bull; Privacidade Total</span>
       </footer>
     </div>
   );

@@ -1,13 +1,16 @@
 {
   "name": "theprog-editor",
   "private": true,
-  "version": "0.4.1",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "test": "vitest run",
+    "e2e:offline": "node scripts/e2e-offline.mjs",
+    "preview": "vite preview",
+    "fetch:pyodide-extras": "node scripts/fetch-pyodide-extras.mjs"
   },
   "dependencies": {
     "@bjorn3/browser_wasi_shim": "^0.4.2",
@@ -19,9 +22,11 @@
     "@yowasp/clang": "^22.0.0-git20542-10",
     "clsx": "^2.1.1",
     "coi-serviceworker": "^0.1.7",
+    "esbuild-wasm": "^0.28.2",
     "idb": "^8.0.3",
     "jszip": "^3.10.2",
     "lucide-react": "^1.47.0",
+    "pyodide": "^314.0.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.7.0",
@@ -36,9 +41,12 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
+    "puppeteer-core": "^25.11.0",
     "sharp": "^0.35.4",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vite-plugin-static-copy": "^4.1.1",
+    "vitest": "^5.0.1"
   }
 }
