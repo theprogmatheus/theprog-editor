@@ -49,7 +49,6 @@ export default defineConfig({
         'pwa-192x192.png',
         'pwa-512x512.png',
         'maskable-icon-512x512.png',
-        'v86/**',
       ],
       manifest: {
         name: 'TheProg Editor - IDE Multilinguagem',
@@ -111,7 +110,28 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('monaco-editor') || id.includes('@monaco-editor')) {
+            return 'vendor-monaco';
+          }
+          if (id.includes('@xterm')) {
+            return 'vendor-xterm';
+          }
+          if (id.includes('isomorphic-git')) {
+            return 'vendor-git';
+          }
+          if (id.includes('lucide-react') || id.includes('clsx') || id.includes('tailwind-merge')) {
+            return 'vendor-ui';
+          }
+        },
+      },
+    },
+  },
   optimizeDeps: {
-    exclude: ['v86', '@yowasp/clang'],
+    exclude: ['@yowasp/clang'],
   },
 });

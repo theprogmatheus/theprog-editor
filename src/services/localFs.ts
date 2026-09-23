@@ -32,7 +32,7 @@ export async function pickDirectory(): Promise<FileSystemDirectoryHandle> {
     throw new Error('A File System Access API não é suportada neste navegador.');
   }
 
-  return await (window as any).showDirectoryPicker({
+  return await window.showDirectoryPicker({
     mode: 'readwrite',
   });
 }
@@ -41,13 +41,13 @@ export async function verifyPermission(
   handle: FileSystemDirectoryHandle,
   readWrite = true
 ): Promise<boolean> {
-  const options = { mode: readWrite ? 'readwrite' : 'read' };
+  const options: FileSystemPermissionDescriptor = { mode: readWrite ? 'readwrite' : 'read' };
   try {
-    const queryStatus = await (handle as any).queryPermission(options);
+    const queryStatus = await handle.queryPermission(options);
     if (queryStatus === 'granted') {
       return true;
     }
-    const requestStatus = await (handle as any).requestPermission(options);
+    const requestStatus = await handle.requestPermission(options);
     return requestStatus === 'granted';
   } catch (err) {
     console.warn('Erro ao verificar permissão do diretório:', err);
@@ -104,7 +104,7 @@ export async function readDirectoryTree(
   const items: FileItem[] = [];
 
   try {
-    for await (const entry of (dirHandle as any).values()) {
+    for await (const entry of dirHandle.values()) {
       const isDir = entry.kind === 'directory';
       if (shouldIgnoreEntry(entry.name, isDir)) {
         continue;
@@ -205,7 +205,7 @@ export async function saveFileToDisk(
   const fileName = parts[parts.length - 1];
   const fileHandle = await currentDir.getFileHandle(fileName, { create: true });
   const writable = await fileHandle.createWritable();
-  await (writable as any).write(content);
+  await writable.write(content);
   await writable.close();
 
   recordInternalWrite(cleanPath);
@@ -317,11 +317,11 @@ export async function renameOnDisk(
     if (!isFolder) {
       const oldFileHandle = await oldParentDir.getFileHandle(oldName);
       // Chromium 111+ suporta move()
-      if ('move' in oldFileHandle && typeof (oldFileHandle as any).move === 'function') {
+      if (typeof oldFileHandle.move === 'function') {
         if (isCrossDir) {
-          await (oldFileHandle as any).move(newParentDir, newName);
+          await oldFileHandle.move(newParentDir, newName);
         } else {
-          await (oldFileHandle as any).move(newName);
+          await oldFileHandle.move(newName);
         }
         recordInternalWrite(cleanOld);
         recordInternalWrite(cleanNew);
@@ -337,11 +337,11 @@ export async function renameOnDisk(
       recordInternalWrite(cleanNew);
     } else {
       const oldDirHandle = await oldParentDir.getDirectoryHandle(oldName);
-      if ('move' in oldDirHandle && typeof (oldDirHandle as any).move === 'function') {
+      if (typeof oldDirHandle.move === 'function') {
         if (isCrossDir) {
-          await (oldDirHandle as any).move(newParentDir, newName);
+          await oldDirHandle.move(newParentDir, newName);
         } else {
-          await (oldDirHandle as any).move(newName);
+          await oldDirHandle.move(newName);
         }
         recordInternalWrite(cleanOld);
         recordInternalWrite(cleanNew);
@@ -378,7 +378,7 @@ export async function scanDirectorySnapshot(
   const map = new Map<string, FileMetadataSnapshot>();
 
   try {
-    for await (const entry of (dirHandle as any).values()) {
+    for await (const entry of dirHandle.values()) {
       const isDir = entry.kind === 'directory';
       if (shouldIgnoreEntry(entry.name, isDir)) {
         continue;

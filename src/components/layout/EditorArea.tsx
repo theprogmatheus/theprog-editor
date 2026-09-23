@@ -37,7 +37,7 @@ export const EditorArea: React.FC = () => {
   const activeTab = tabs.find((t) => t.fileId === activeFileId);
   const { theme } = useTheme();
   const { showPrompt } = useDialog();
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
 
   // Sincroniza os arquivos do Workspace com o Language Service para resolução de #include "..."
   // e disponibiliza arquivos TS/JS para o IntelliSense entre arquivos (com debounce).
@@ -244,10 +244,6 @@ export const EditorArea: React.FC = () => {
   const secondaryFile = files.find((f) => f.id === secondaryFileId) || null;
 
   const [forcedText, setForcedText] = useState<{ fileId: string; content: string } | null>(null);
-
-  useEffect(() => {
-    setForcedText(null);
-  }, [activeFileId]);
 
   const handleForceText = async () => {
     if (!activeFile) return;
