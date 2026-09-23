@@ -179,23 +179,49 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setPackageStatus('Pacote removido do cache offline do projeto.');
   };
 
-  const handleClearRuntimeCaches = async () => {
+  const handleClearSpecificCache = async (target: 'clang' | 'python' | 'all') => {
     if (typeof caches === 'undefined') return;
+    const label =
+      target === 'clang'
+        ? 'C/C++ (Clang)'
+        : target === 'python'
+        ? 'Python (Pyodide)'
+        : 'Todos os Ambientes';
     const confirmed = await showConfirm({
-      title: 'Limpar Caches dos Ambientes',
-      message:
-        'Isso remove os arquivos cacheados dos runtimes (Clang, Python e esbuild). Na próxima execução, eles serão baixados novamente (requer internet). Deseja continuar?',
-      confirmText: 'Limpar caches',
+      title: `Limpar Cache de ${label}`,
+      message: `Isso removerá os arquivos armazenados em cache para ${label}. Na próxima execução, eles serão baixados sob demanda. Deseja continuar?`,
+      confirmText: 'Limpar cache',
       cancelText: 'Cancelar',
       danger: true,
     });
     if (!confirmed) return;
+
     try {
-      const names = await caches.keys();
-      await Promise.all(names.map((name) => caches.delete(name)));
+      if (target === 'all') {
+        const names = await caches.keys();
+        await Promise.all(names.map((name) => caches.delete(name)));
+      } else {
+        const cacheNames = await caches.keys();
+        for (const name of cacheNames) {
+          if (target === 'python' && name === 'python-wheels-cache') {
+            await caches.delete(name);
+            continue;
+          }
+          const cache = await caches.open(name);
+          const requests = await cache.keys();
+          for (const req of requests) {
+            const url = req.url.toLowerCase();
+            if (target === 'clang' && (url.includes('clang') || url.includes('@yowasp'))) {
+              await cache.delete(req);
+            } else if (target === 'python' && (url.includes('pyodide') || url.includes('python'))) {
+              await cache.delete(req);
+            }
+          }
+        }
+      }
       window.location.reload();
     } catch (err) {
-      console.warn('Erro ao limpar caches:', err);
+      console.warn('Erro ao limpar cache:', err);
     }
   };
 
@@ -682,10 +708,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 )}
               </div>
 
-              {/* 5. Armazenamento Offline */}
-              <div className="p-3.5 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-xl space-y-2">
+              {/* 5. Armazenamento Offline & Governança Granular */}
+              <div className="p-3.5 bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] rounded-xl space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-black dark:text-white">5. Armazenamento Offline (Cache & IndexedDB)</span>
+                  <span className="font-semibold text-black dark:text-white">
+                    5. Governança de Armazenamento e Caches
+                  </span>
                   {storageInfo && (
                     <span className="px-2 py-0.5 rounded text-[11px] border bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-zinc-300 dark:border-zinc-700">
                       {formatStorageSize(storageInfo.usage)} em uso
@@ -693,19 +721,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   )}
                 </div>
                 <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
-                  Os ambientes de execução, wheels e pacotes Python ficam cacheados localmente pelo Service Worker e pelo
-                  IndexedDB.
+                  Os compiladores e interpretadores WebAssembly ficam armazenados no CacheStorage do navegador para funcionamento 100% offline.
                   {storageInfo && storageInfo.quota > 0
-                    ? ` Cota disponível no navegador: ${formatStorageSize(storageInfo.quota)}.`
+                    ? ` Cota total disponível no navegador: ${formatStorageSize(storageInfo.quota)}.`
                     : ''}
                 </p>
-                <button
-                  onClick={handleClearRuntimeCaches}
-                  className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#f0f0f0] hover:bg-[#e4e4e4] dark:bg-[#333333] dark:hover:bg-[#3d3d3d] text-amber-700 dark:text-amber-300 border border-amber-500/30 cursor-pointer transition-colors"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Limpar caches dos ambientes</span>
-                </button>
+
+                {/* Discriminação por Runtime */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#333333] flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-black dark:text-white">Clang LLVM (C/C++)</div>
+                      <div className="text-[11px] text-[#888888]">~110 MB (Compilador & Libs)</div>
+                    </div>
+                    <button
+                      onClick={() => handleClearSpecificCache('clang')}
+                      title="Limpar cache do Clang"
+                      className="px-2.5 py-1 text-[11px] rounded font-medium bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/60 cursor-pointer transition-colors"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-white dark:bg-[#252526] border border-[#e5e5e5] dark:border-[#333333] flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-black dark:text-white">Pyodide (Python)</div>
+                      <div className="text-[11px] text-[#888888]">~35 MB (CPython & StdLib)</div>
+                    </div>
+                    <button
+                      onClick={() => handleClearSpecificCache('python')}
+                      title="Limpar cache do Pyodide"
+                      className="px-2.5 py-1 text-[11px] rounded font-medium bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-900/60 cursor-pointer transition-colors"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    onClick={() => handleClearSpecificCache('all')}
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-[#f0f0f0] hover:bg-[#e4e4e4] dark:bg-[#333333] dark:hover:bg-[#3d3d3d] text-amber-700 dark:text-amber-300 border border-amber-500/30 cursor-pointer transition-colors text-xs"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Limpar todos os caches dos ambientes</span>
+                  </button>
+                </div>
               </div>
 
             </>

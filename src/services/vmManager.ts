@@ -1,9 +1,9 @@
 import type { VMStatus } from '../types/editor';
-import type { RunPlan, RuntimeId } from './languages/types';
-import { runtimeManager } from './runtimes/manager';
-import type { RuntimeIO, StdinController, SyncedFile } from './runtimes/types';
+import type { RunPlan } from './languages/types';
+import type { SyncedFile } from './runtimes/types';
+import { processManager, type ProcessMetrics } from './process/processManager';
 
-export type ConsoleTab = 'environment' | 'execution';
+export type ConsoleTab = 'environment' | 'execution' | 'tests';
 
 type OutputListener = (data: string) => void;
 type StatusListener = (status: VMStatus, message?: string) => void;
@@ -20,15 +20,8 @@ class VMManager {
   private environmentListeners: Set<OutputListener> = new Set();
   private executionListeners: Set<OutputListener> = new Set();
   private statusListeners: Set<StatusListener> = new Set();
-
-  private isExecuting: boolean = false;
-  private currentController: StdinController | null = null;
-  private activeRuntime: RuntimeId | null = null;
-  private isAwaitingProgramInput: boolean = false;
   private stdinInputBuffer: string = '';
-  private stdinQueue: string[] = [];
-  private executionEpoch: number = 0;
-  private lastRunWasCached = false;
+  private lastMetrics: ProcessMetrics | null = null;
 
   constructor() {
     this.setStatus('ready', 'Sistema pronto');
@@ -93,11 +86,11 @@ class VMManager {
   }
 
   public isRunning(): boolean {
-    return this.isExecuting;
+    return processManager.isRunning();
   }
 
   public syncFile(_filename: string, _content: string) {
-    // Compatibilidade reversa: a sincronização agora ocorre no momento da execução.
+    // Compatibilidade reversa: a sincronização ocorre no momento da execução.
   }
 
   public clearEnvironmentTerminal() {
@@ -114,28 +107,23 @@ class VMManager {
     this.clearExecutionTerminal();
   }
 
+  public getLastMetrics(): ProcessMetrics | null {
+    return this.lastMetrics;
+  }
+
   public stopExecution() {
-    if (!this.isExecuting && !this.isAwaitingProgramInput) return;
+    if (!processManager.isRunning()) return;
     this.emitExecutionOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
     this.emitEnvironmentOutput('\r\n\x1b[90m[Processo interrompido]\x1b[0m\r\n');
-    if (this.currentController) {
-      try {
-        this.currentController.abort();
-      } catch {
-        // ignore
-      }
-      this.currentController = null;
-    }
-    runtimeManager.terminate(this.activeRuntime);
-    this.isExecuting = false;
-    this.isAwaitingProgramInput = false;
+    processManager.terminate();
     this.stdinInputBuffer = '';
-    this.stdinQueue = [];
     this.setStatus('ready', 'Execução interrompida');
   }
 
   public sendInput(data: string) {
-    if (this.isAwaitingProgramInput) {
+    const activeProc = processManager.getActiveProcess();
+
+    if (activeProc?.isAwaitingInput) {
       if (data === '\x03') {
         this.stopExecution();
         return;
@@ -143,12 +131,8 @@ class VMManager {
 
       if (data === '\r' || data === '\n') {
         this.emitExecutionOutput('\r\n');
-        const toSend = this.stdinInputBuffer + '\n';
         this.stdinInputBuffer = '';
-        this.isAwaitingProgramInput = false;
-        if (this.currentController) {
-          this.currentController.sendStdin(toSend);
-        }
+        processManager.sendInput(data);
         return;
       }
 
@@ -157,6 +141,7 @@ class VMManager {
           this.stdinInputBuffer = this.stdinInputBuffer.slice(0, -1);
           this.emitExecutionOutput('\b \b');
         }
+        processManager.sendInput(data);
         return;
       }
 
@@ -168,31 +153,25 @@ class VMManager {
 
         for (const line of lines) {
           this.emitExecutionOutput(line + '\r\n');
-          this.stdinQueue.push(line + '\n');
         }
-
-        if (this.isAwaitingProgramInput && this.stdinQueue.length > 0) {
-          const next = this.stdinQueue.shift()!;
-          this.isAwaitingProgramInput = false;
-          this.currentController?.sendStdin(next);
-        }
-
         if (remaining) {
           this.emitExecutionOutput(remaining);
         }
+        processManager.sendInput(data);
         return;
       }
 
       if (data.length === 1 && data.charCodeAt(0) >= 32) {
         this.stdinInputBuffer += data;
         this.emitExecutionOutput(data);
+        processManager.sendInput(data);
         return;
       }
 
       return;
     }
 
-    if (this.isExecuting) {
+    if (processManager.isRunning()) {
       if (data === '\x03') {
         this.stopExecution();
       }
@@ -210,74 +189,46 @@ class VMManager {
   }
 
   /**
-   * Executa um plano de execução em qualquer runtime (C/C++, Python, JS/TS).
-   * O console mantém as abas "Ambiente" (build/carregamento) e "Execução" (programa).
+   * Executa um plano de execução através do ProcessManager, garantindo isolamento por PID.
    */
   public async run(plan: RunPlan, options: RunOptions = {}) {
-    if (this.isExecuting) {
+    if (processManager.isRunning()) {
       this.stopExecution();
     }
 
     this.clearEnvironmentTerminal();
     this.clearExecutionTerminal();
     this.setActiveTab('environment');
-
-    const executionToken = ++this.executionEpoch;
-    this.isExecuting = true;
-    this.activeRuntime = plan.runtime;
-    this.lastRunWasCached = false;
-    this.stdinQueue = [];
+    this.stdinInputBuffer = '';
     this.setStatus('running', plan.statusMessage);
 
-    const io: RuntimeIO = {
+    let exitCode = 1;
+    let procCached = false;
+
+    exitCode = await processManager.spawn(plan, {
       onOutput: (text) => this.emitExecutionOutput(text),
       onEnvironmentOutput: (text) => this.emitEnvironmentOutput(text),
       onPhaseChange: (phase) => this.setActiveTab(phase),
-      onNeedStdin: () => {
-        if (this.stdinQueue.length > 0) {
-          const next = this.stdinQueue.shift()!;
-          this.isAwaitingProgramInput = false;
-          this.currentController?.sendStdin(next);
-        } else {
-          this.isAwaitingProgramInput = true;
-          this.stdinInputBuffer = '';
-        }
-      },
-      onControllerReady: (controller) => {
-        this.currentController = controller;
+      onStatusChange: (status, message) => {
+        if (status === 'running') this.setStatus('running', message);
       },
       onFsSync: (files) => options.onFilesUpdated?.(files),
-      onMeta: (meta) => {
-        if (meta.cached !== undefined) this.lastRunWasCached = meta.cached;
+      onMetrics: (metrics) => {
+        this.lastMetrics = metrics;
       },
-    };
+    });
 
-    const startTime = performance.now();
-    let exitCode = 1;
+    const activeProc = processManager.getProcess(processManager.getActiveProcess()?.pid || 0);
+    procCached = Boolean(activeProc?.cached);
 
-    try {
-      exitCode = await runtimeManager.run(plan.runtime, plan, io);
-    } catch (err: any) {
-      this.emitExecutionOutput(`\r\n\x1b[31m[Erro na execução: ${err?.message || err}]\x1b[0m\r\n`);
-      exitCode = 1;
-    } finally {
-      if (this.executionEpoch !== executionToken) {
-        return;
-      }
-    }
-
-    const durationMs = performance.now() - startTime;
+    const durationMs = this.lastMetrics?.durationMs || 0;
     const durationFormatted = (durationMs / 1000).toFixed(3) + 's';
-    const cacheSuffix = this.lastRunWasCached ? ' (cached)' : '';
+    const cacheSuffix = procCached ? ' (cached)' : '';
 
-    this.currentController = null;
-    this.activeRuntime = null;
-    this.isAwaitingProgramInput = false;
-    this.stdinInputBuffer = '';
-    this.stdinQueue = [];
-    this.isExecuting = false;
-
-    this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Concluído' : 'Finalizado com erro');
+    this.setStatus(
+      exitCode === 0 ? 'ready' : 'error',
+      exitCode === 0 ? 'Concluído' : 'Finalizado com erro'
+    );
 
     if (exitCode === 0) {
       this.emitExecutionOutput(

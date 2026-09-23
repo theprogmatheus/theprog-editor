@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { X, FileCode, Plus } from 'lucide-react';
+import { X, FileCode, Plus, Columns2, Eye, Code } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -12,6 +12,7 @@ import { syncWorkspaceTsFiles } from '../../services/monaco/tsLanguageService';
 import { getMonacoLanguage, isTextFileKind } from '../../services/languages/registry';
 import { UnsupportedFileView } from '../common/UnsupportedFileView';
 import { ImagePreview } from '../common/ImagePreview';
+import { MarkdownPreview } from '../common/MarkdownPreview';
 
 export const EditorArea: React.FC = () => {
   const {
@@ -52,6 +53,11 @@ export const EditorArea: React.FC = () => {
   // Estados de Drag and Drop de Abas
   const [draggedTabIndex, setDraggedTabIndex] = useState<number | null>(null);
   const [dragOverTabIndex, setDragOverTabIndex] = useState<number | null>(null);
+
+  // Estados de Split View e Markdown Preview
+  const [isSplitView, setIsSplitView] = useState(false);
+  const [secondaryFileId, setSecondaryFileId] = useState<string | null>(null);
+  const [isMarkdownPreview, setIsMarkdownPreview] = useState(false);
 
   // Menu de Contexto das Abas
   const [tabContextMenu, setTabContextMenu] = useState<{
@@ -227,6 +233,7 @@ export const EditorArea: React.FC = () => {
   }, []);
 
   const monacoLanguage = activeFile ? getMonacoLanguage(activeFile.language) : 'plaintext';
+  const secondaryFile = files.find((f) => f.id === secondaryFileId) || null;
 
   const [forcedText, setForcedText] = useState<{ fileId: string; content: string } | null>(null);
 
@@ -338,6 +345,41 @@ export const EditorArea: React.FC = () => {
         >
           <Plus className="w-3.5 h-3.5" />
         </button>
+
+        {/* Ações da Barra de Abas (Markdown Preview & Split View) */}
+        <div className="ml-auto flex items-center h-full px-2 space-x-1 shrink-0">
+          {activeFile?.language === 'markdown' && (
+            <button
+              onClick={() => setIsMarkdownPreview(!isMarkdownPreview)}
+              title={isMarkdownPreview ? 'Voltar para Edição' : 'Pré-visualizar Markdown'}
+              className={`p-1.5 rounded cursor-pointer transition-colors ${
+                isMarkdownPreview
+                  ? 'bg-[#007acc] text-white'
+                  : 'text-[#777777] hover:text-black dark:hover:text-white hover:bg-[#e0e0e0] dark:hover:bg-[#252526]'
+              }`}
+            >
+              {isMarkdownPreview ? <Code className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              if (!isSplitView) {
+                const other = tabs.find((t) => t.fileId !== activeFileId);
+                if (other) setSecondaryFileId(other.fileId);
+              }
+              setIsSplitView(!isSplitView);
+            }}
+            title={isSplitView ? 'Fechar Divisão de Tela' : 'Dividir Editor Lado a Lado (Split View)'}
+            className={`p-1.5 rounded cursor-pointer transition-colors ${
+              isSplitView
+                ? 'bg-[#007acc] text-white'
+                : 'text-[#777777] hover:text-black dark:hover:text-white hover:bg-[#e0e0e0] dark:hover:bg-[#252526]'
+            }`}
+          >
+            <Columns2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* Menu de Contexto Customizado da Aba */}
@@ -378,78 +420,142 @@ export const EditorArea: React.FC = () => {
         </div>
       )}
 
-      {/* Corpo Central: Monaco Editor OU Placeholder "Nenhum arquivo aberto" */}
-      {activeFile ? (
-        isTextFileKind(activeFile.kind) || isForcedTextView ? (
-          <div className="flex-1 w-full h-full min-h-0 relative">
-          <Editor
-            height="100%"
-            path={activeFile.path || activeFile.name}
-            language={monacoLanguage}
-            theme={theme === 'dark' ? 'vs-dark' : 'light'}
-            value={isForcedTextView ? forcedText!.content : activeFile.content || ''}
-            onChange={(value) => {
-              if (value !== undefined && !isForcedTextView) {
-                updateFileContent(activeFile.id, value);
-              }
-            }}
-            onMount={handleEditorDidMount}
-            options={{
-              readOnly: isForcedTextView,
-              fontSize,
-              fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
-              fontLigatures: true,
-              tabSize: 4,
-              insertSpaces: true,
-              automaticLayout: true,
-              minimap: { enabled: false },
-              scrollBeyondLastLine: false,
-              renderLineHighlight: 'all',
-              cursorBlinking: 'smooth',
-              smoothScrolling: true,
-              bracketPairColorization: { enabled: true },
-              lineNumbers: 'on',
-              renderWhitespace: 'selection',
-              fixedOverflowWidgets: true,
-              quickSuggestions: { other: true, comments: false, strings: false },
-              suggestOnTriggerCharacters: true,
-              acceptSuggestionOnEnter: 'on',
-              tabCompletion: 'on',
-              suggestSelection: 'first',
-              wordBasedSuggestions: 'matchingDocuments',
-              parameterHints: { enabled: true, cycle: true },
-              suggest: {
-                snippetsPreventQuickSuggestions: false,
-                showWords: true,
-                showVariables: true,
-                showFunctions: true,
-                showConstants: true,
-                showStructs: true,
-                showKeywords: true,
-                showSnippets: true,
-                showModules: true,
-                showFields: true,
-              },
-            }}
-            loading={
-              <div className="flex items-center justify-center h-full text-xs text-[#888888]">
-                Carregando Editor...
+      {/* Corpo Central: Visualização Dividida OU Tela Cheia */}
+      <div className="flex-1 w-full h-full min-h-0 flex overflow-hidden">
+        {/* Painel Primário */}
+        <div
+          className={`h-full min-h-0 min-w-0 flex flex-col ${
+            isSplitView ? 'flex-1 border-r border-[#e5e5e5] dark:border-[#252526]' : 'w-full'
+          }`}
+        >
+          {activeFile ? (
+            activeFile.language === 'markdown' && isMarkdownPreview ? (
+              <MarkdownPreview content={activeFile.content || ''} filename={activeFile.name} />
+            ) : isTextFileKind(activeFile.kind) || isForcedTextView ? (
+              <div className="flex-1 w-full h-full min-h-0 relative">
+                <Editor
+                  height="100%"
+                  path={activeFile.path || activeFile.name}
+                  language={monacoLanguage}
+                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                  value={isForcedTextView ? forcedText!.content : activeFile.content || ''}
+                  onChange={(value) => {
+                    if (value !== undefined && !isForcedTextView) {
+                      updateFileContent(activeFile.id, value);
+                    }
+                  }}
+                  onMount={handleEditorDidMount}
+                  options={{
+                    readOnly: isForcedTextView,
+                    fontSize,
+                    fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
+                    fontLigatures: true,
+                    tabSize: 4,
+                    insertSpaces: true,
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    renderLineHighlight: 'all',
+                    cursorBlinking: 'smooth',
+                    smoothScrolling: true,
+                    bracketPairColorization: { enabled: true },
+                    lineNumbers: 'on',
+                    renderWhitespace: 'selection',
+                    fixedOverflowWidgets: true,
+                    quickSuggestions: { other: true, comments: false, strings: false },
+                    suggestOnTriggerCharacters: true,
+                    acceptSuggestionOnEnter: 'on',
+                    tabCompletion: 'on',
+                    suggestSelection: 'first',
+                    wordBasedSuggestions: 'matchingDocuments',
+                    parameterHints: { enabled: true, cycle: true },
+                    suggest: {
+                      snippetsPreventQuickSuggestions: false,
+                      showWords: true,
+                      showVariables: true,
+                      showFunctions: true,
+                      showConstants: true,
+                      showStructs: true,
+                      showKeywords: true,
+                      showSnippets: true,
+                      showModules: true,
+                      showFields: true,
+                    },
+                  }}
+                  loading={
+                    <div className="flex items-center justify-center h-full text-xs text-[#888888]">
+                      Carregando Editor...
+                    </div>
+                  }
+                />
               </div>
-            }
-          />
-          </div>
-        ) : activeFile.kind === 'image' ? (
-          <ImagePreview file={activeFile} />
-        ) : (
-          <UnsupportedFileView file={activeFile} onForceText={handleForceText} />
-        )
-      ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-[#616161] dark:text-[#858585] select-none p-6 transition-colors text-center">
-          <FileCode className="w-16 h-16 text-[#cccccc] dark:text-[#333333] mb-4 stroke-1" />
-          <h2 className="text-base font-medium text-[#333333] dark:text-[#cccccc] mb-1">Nenhum arquivo aberto</h2>
-          <p className="text-xs text-[#777777] max-w-xs">Selecione um arquivo no explorador lateral para começar a programar</p>
+            ) : activeFile.kind === 'image' ? (
+              <ImagePreview file={activeFile} />
+            ) : (
+              <UnsupportedFileView file={activeFile} onForceText={handleForceText} />
+            )
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1e1e1e] text-[#616161] dark:text-[#858585] select-none p-6 transition-colors text-center h-full">
+              <FileCode className="w-16 h-16 text-[#cccccc] dark:text-[#333333] mb-4 stroke-1" />
+              <h2 className="text-base font-medium text-[#333333] dark:text-[#cccccc] mb-1">
+                Nenhum arquivo aberto
+              </h2>
+              <p className="text-xs text-[#777777] max-w-xs">
+                Selecione um arquivo no explorador lateral para começar a programar
+              </p>
+            </div>
+          )}
         </div>
-      )}
+
+        {/* Painel Secundário (Split View) */}
+        {isSplitView && (
+          <div className="flex-1 h-full min-h-0 min-w-0 flex flex-col bg-white dark:bg-[#1e1e1e]">
+            {/* Cabeçalho do painel secundário */}
+            <div className="h-8 px-3 flex items-center justify-between border-b border-[#e5e5e5] dark:border-[#202020] bg-[#f9f9f9] dark:bg-[#1c1c1c] text-xs shrink-0 select-none">
+              <span className="font-semibold text-black dark:text-white">Editor Secundário</span>
+              <select
+                value={secondaryFileId || ''}
+                onChange={(e) => setSecondaryFileId(e.target.value)}
+                className="px-2 py-0.5 text-xs rounded bg-white dark:bg-[#252526] border border-[#cccccc] dark:border-[#404040] text-black dark:text-white"
+              >
+                {files
+                  .filter((f) => !f.isFolder)
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="flex-1 w-full min-h-0 relative">
+              {secondaryFile && (isTextFileKind(secondaryFile.kind) || secondaryFile.content !== undefined) ? (
+                <Editor
+                  height="100%"
+                  path={`secondary_${secondaryFile.path || secondaryFile.name}`}
+                  language={getMonacoLanguage(secondaryFile.language)}
+                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                  value={secondaryFile.content || ''}
+                  onChange={(val) => {
+                    if (val !== undefined) updateFileContent(secondaryFile.id, val);
+                  }}
+                  options={{
+                    fontSize,
+                    minimap: { enabled: false },
+                    automaticLayout: true,
+                    scrollBeyondLastLine: false,
+                    lineNumbers: 'on',
+                  }}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-xs text-[#888888]">
+                  Selecione um arquivo secundário acima para editar em paralelo.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

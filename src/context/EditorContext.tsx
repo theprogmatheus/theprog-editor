@@ -94,7 +94,12 @@ interface EditorContextType {
   openFile: (fileId: string) => void;
   closeTab: (fileId: string) => void;
   updateFileContent: (fileId: string, content: string) => void;
-  createNewFile: (name: string, isFolder?: boolean, parentId?: string | null) => Promise<string>;
+  createNewFile: (
+    name: string,
+    isFolder?: boolean,
+    parentId?: string | null,
+    initialContent?: string
+  ) => Promise<string>;
   deleteFile: (fileId: string) => Promise<void>;
   renameFile: (fileId: string, newName: string) => Promise<void>;
   downloadWorkspaceZip: () => Promise<void>;
@@ -431,10 +436,6 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentScreen('editor');
     currentWsKeyRef.current = wsKey;
     setIsStorageLoaded(true);
-
-    runtimeManager.preloadAll().catch((err) => {
-      console.warn('Pré-carregamento dos ambientes adiado:', err);
-    });
   }, []);
 
   // Carrega Workspace Sandbox (Virtual no IndexedDB)
@@ -567,10 +568,6 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentScreen('editor');
     currentWsKeyRef.current = wsKey;
     setIsStorageLoaded(true);
-
-    runtimeManager.preloadAll().catch((err) => {
-      console.warn('Pré-carregamento dos ambientes adiado:', err);
-    });
   }, []);
 
   const openLocalFolder = useCallback(async () => {
@@ -663,13 +660,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [files, activeWorkspace]);
 
-  // Inicialização da aplicação: gerencia workspaces recentes, decisão de tela e pré-carrega o sistema
+  // Inicialização da aplicação: gerencia workspaces recentes e decisão de tela inicial
   useEffect(() => {
-    // Inicia imediatamente o carregamento dos ambientes (Clang, Python e JS/TS) em background
-    runtimeManager.preloadAll().catch((err) => {
-      console.warn('Pré-carregamento inicial dos ambientes adiado:', err);
-    });
-
     getRecentWorkspaces().then(async (recents) => {
       setRecentWorkspaces(recents);
 
@@ -842,6 +834,24 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [currentScreen, activeWorkspace, tabs]);
 
   const activeFile = files.find((f) => f.id === activeFileId) || null;
+
+  // Carregamento modular sob demanda (lazy loading) quando o usuário abre/foca um arquivo
+  useEffect(() => {
+    if (!activeFile || activeFile.isFolder) return;
+    if (activeFile.language === 'c' || activeFile.language === 'cpp') {
+      runtimeManager.preload('clang').catch((err) => {
+        console.warn('Pré-carregamento Clang sob demanda adiado:', err);
+      });
+    } else if (activeFile.language === 'python') {
+      runtimeManager.preload('python').catch((err) => {
+        console.warn('Pré-carregamento Python sob demanda adiado:', err);
+      });
+    } else if (activeFile.language === 'javascript' || activeFile.language === 'typescript') {
+      runtimeManager.preload('js').catch((err) => {
+        console.warn('Pré-carregamento JS/TS sob demanda adiado:', err);
+      });
+    }
+  }, [activeFile]);
 
   // Persiste a sessão do workspace atual (abas abertas, arquivo ativo, terminal, sidebar) de forma 100% isolada por projeto
   useEffect(() => {
@@ -1042,7 +1052,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [activeWorkspace, autoSave, autoSaveDelay]);
 
   const createNewFile = useCallback(
-    async (name: string, isFolder: boolean = false, parentId: string | null = null): Promise<string> => {
+    async (
+      name: string,
+      isFolder: boolean = false,
+      parentId: string | null = null,
+      initialContent: string = ''
+    ): Promise<string> => {
       const cleanName = name.trim();
       if (isInvalidFileName(cleanName)) {
         throw new Error('Nome de arquivo inválido. Evite caracteres especiais (/ \\ : * ? " < > |) e caminhos relativos.');
@@ -1071,7 +1086,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         parentId,
         language,
         updatedAt: Date.now(),
-        content: isFolder ? undefined : '',
+        content: isFolder ? undefined : initialContent,
       };
 
       // Notifica o sistema de auto-sync de gravação interna prévia para evitar race conditions no disco
@@ -1082,6 +1097,9 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           await createFolderOnDisk(activeWorkspace.handle, filePath);
         } else {
           await createFileOnDisk(activeWorkspace.handle, filePath);
+          if (initialContent) {
+            await saveFileToDisk(activeWorkspace.handle, filePath, initialContent);
+          }
         }
       } else {
         await saveFileToStorage(newFile);

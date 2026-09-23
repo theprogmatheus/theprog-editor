@@ -14,6 +14,13 @@ function runtimeReason(progress: RuntimeProgress | undefined, label: string): st
   return `Ambiente ${label} carregando (${Math.round(progress.percent)}%)...`;
 }
 
+function runtimeLabel(progress: RuntimeProgress | undefined, baseLabel: string): string {
+  if (progress?.status === 'loading') {
+    return `${baseLabel} (${Math.round(progress.percent || 0)}%)`;
+  }
+  return baseLabel;
+}
+
 export function getRunCapability(file: FileItem | null, runtimes: RuntimeProgressMap): RunCapability {
   const runLabel = 'Executar';
 
@@ -41,7 +48,7 @@ export function getRunCapability(file: FileItem | null, runtimes: RuntimeProgres
         return {
           canRun: false,
           action: 'compile-run',
-          label: compileLabel,
+          label: runtimeLabel(runtimes.clang, compileLabel),
           reason: runtimeReason(runtimes.clang, 'C/C++'),
         };
       }
@@ -61,7 +68,7 @@ export function getRunCapability(file: FileItem | null, runtimes: RuntimeProgres
         return {
           canRun: false,
           action: 'run',
-          label: runLabel,
+          label: runtimeLabel(runtimes.python, runLabel),
           reason: runtimeReason(runtimes.python, 'Python'),
         };
       }
@@ -73,7 +80,7 @@ export function getRunCapability(file: FileItem | null, runtimes: RuntimeProgres
         return {
           canRun: false,
           action: 'run',
-          label: runLabel,
+          label: runtimeLabel(runtimes.js, runLabel),
           reason: runtimeReason(runtimes.js, 'JavaScript/TypeScript'),
         };
       }

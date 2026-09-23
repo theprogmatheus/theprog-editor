@@ -1,8 +1,8 @@
 import React from 'react';
-import { Files, Settings, HelpCircle, Download } from 'lucide-react';
+import { Files, GitBranch, Settings, HelpCircle, Download } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 
-export type ActivityTab = 'explorer' | 'settings' | 'help';
+export type ActivityTab = 'explorer' | 'git' | 'settings' | 'help';
 
 interface ActivityBarProps {
   activeTab: ActivityTab;
@@ -24,9 +24,20 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, setActiveTa
     }
   };
 
+  const handleGitClick = () => {
+    if (activeTab === 'git') {
+      toggleSidebar();
+    } else {
+      setActiveTab('git');
+      if (!isSidebarOpen) {
+        toggleSidebar();
+      }
+    }
+  };
+
   return (
     <aside className="w-12 flex flex-col justify-between items-center py-2 bg-[#f0f0f0] dark:bg-[#333333] border-r border-[#e5e5e5] dark:border-[#252526] select-none text-[#616161] dark:text-[#858585] transition-colors shrink-0 z-20">
-      {/* Ícone superior: Explorador */}
+      {/* Ícones superiores: Explorador e Git */}
       <div className="flex flex-col items-center space-y-3 w-full">
         <button
           onClick={handleExplorerClick}
@@ -38,6 +49,18 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, setActiveTa
           }`}
         >
           <Files className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={handleGitClick}
+          title="Controle de Versão Git Local (Clique para abrir/fechar)"
+          className={`w-10 h-10 flex items-center justify-center rounded cursor-pointer transition-colors relative ${
+            activeTab === 'git' && isSidebarOpen
+              ? 'text-black dark:text-white border-l-2 border-[#007acc] dark:border-white bg-black/5 dark:bg-white/5'
+              : 'hover:text-black dark:hover:text-white'
+          }`}
+        >
+          <GitBranch className="w-5 h-5" />
         </button>
       </div>
 

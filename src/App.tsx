@@ -11,6 +11,7 @@ import { SettingsModal } from './components/modals/SettingsModal';
 import { HelpModal } from './components/modals/HelpModal';
 import { WelcomeScreen } from './components/screens/WelcomeScreen';
 import { GlobalContextMenu } from './components/common/GlobalContextMenu';
+import { GitPanel } from './components/layout/GitPanel';
 
 const MainLayout: React.FC = () => {
   const [activeActivityTab, setActiveActivityTab] = useState<ActivityTab>('explorer');
@@ -45,6 +46,11 @@ const MainLayout: React.FC = () => {
         />
 
         {activeActivityTab === 'explorer' && <Sidebar />}
+        {activeActivityTab === 'git' && (
+          <div className="w-64 h-full border-r border-[#e5e5e5] dark:border-[#252526] shrink-0">
+            <GitPanel />
+          </div>
+        )}
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <EditorArea />

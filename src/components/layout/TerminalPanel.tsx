@@ -13,10 +13,12 @@ import {
   Copy,
   ClipboardPaste,
   CheckSquare,
+  Layers,
 } from 'lucide-react';
 import { vmManager, type ConsoleTab } from '../../services/vmManager';
 import { useTheme } from '../../context/ThemeContext';
 import { useEditor } from '../../context/EditorContext';
+import { TestRunnerPanel } from './TestRunnerPanel';
 
 export const TerminalPanel: React.FC = () => {
   const environmentRef = useRef<HTMLDivElement>(null);
@@ -388,6 +390,23 @@ export const TerminalPanel: React.FC = () => {
               <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-emerald-600 dark:bg-emerald-400" />
             )}
           </button>
+
+          {/* Aba Testes & Casos */}
+          <button
+            onClick={() => vmManager.setActiveTab('tests')}
+            title="Painel de Casos de Teste Automatizados (Beecrowd / LeetCode)"
+            className={`h-full px-3 flex items-center space-x-1.5 text-xs font-semibold cursor-pointer transition-all relative ${
+              activeTab === 'tests'
+                ? 'bg-white dark:bg-[#1e1e1e] text-black dark:text-white'
+                : 'text-[#666666] dark:text-[#888888] hover:bg-[#e0e0e0] dark:hover:bg-[#2c2c2d] hover:text-black dark:hover:text-white'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            <span>Testes & Casos</span>
+            {activeTab === 'tests' && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-purple-600 dark:bg-purple-400" />
+            )}
+          </button>
         </div>
 
         {/* Controles do console */}
@@ -472,6 +491,12 @@ export const TerminalPanel: React.FC = () => {
           style={{ display: activeTab === 'execution' ? 'block' : 'none' }}
           className="w-full h-full"
         />
+        <div
+          style={{ display: activeTab === 'tests' ? 'block' : 'none' }}
+          className="w-full h-full"
+        >
+          <TestRunnerPanel />
+        </div>
 
         {/* Menu de Contexto Útil do Terminal */}
         {contextMenu && (

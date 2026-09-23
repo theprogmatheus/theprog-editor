@@ -10,9 +10,9 @@ import {
 import type { RunPlan } from '../languages/types';
 import type { RuntimeAdapter, RuntimeProgress } from './types';
 
+import { resolveSources } from '../buildConfig';
+
 const encoder = new TextEncoder();
-const SOURCE_REGEX = /\.(c|cpp|cc|cxx)$/i;
-const MAIN_REGEX = /\b(?:int|void)\s+main\s*\(/;
 
 function toRuntimeProgress(progress: CompilerProgress): RuntimeProgress {
   return {
@@ -38,22 +38,18 @@ export const clangRuntime: RuntimeAdapter = {
   terminate: () => terminateCompilerWorker(),
 
   run: async (plan: RunPlan, io) => {
-    const sources: string[] = [plan.entryFile];
-
-    plan.files.forEach((content, name) => {
-      if (name !== plan.entryFile && SOURCE_REGEX.test(name)) {
-        if (!MAIN_REGEX.test(content)) {
-          sources.push(name);
-        }
-      }
-    });
-
-    const isCpp = /\.(cpp|cc|cxx)$/i.test(plan.entryFile);
-    const compilerCmd = isCpp ? 'clang++' : 'clang';
+    const resolution = resolveSources(plan.files, plan.entryFile);
+    const sources = resolution.sources;
+    const isCpp =
+      resolution.customCompiler === 'clang++' ||
+      /\.(cpp|cc|cxx)$/i.test(plan.entryFile);
+    const compilerCmd = resolution.customCompiler || (isCpp ? 'clang++' : 'clang');
     const binaryName = plan.entryFile.replace(/\.[^/.]+$/, '');
+    const flags = resolution.customFlags || plan.args || [];
+    const flagsStr = flags.length > 0 ? ` ${flags.join(' ')}` : ' -O0';
 
     io.onEnvironmentOutput(
-      `\x1b[90m$ ${compilerCmd} -O0 ${sources.join(' ')} -o ${binaryName}.wasm\x1b[0m\r\n`
+      `\x1b[90m$ ${compilerCmd}${flagsStr} ${sources.join(' ')} -o ${binaryName}.wasm\x1b[0m\r\n`
     );
 
     const { wasmBinary, wasCached } = await compileC(
@@ -61,7 +57,7 @@ export const clangRuntime: RuntimeAdapter = {
       plan.files,
       binaryName,
       (out) => io.onEnvironmentOutput(out),
-      plan.args || []
+      flags
     );
 
     if (!wasmBinary) {

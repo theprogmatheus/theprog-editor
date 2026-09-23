@@ -23,7 +23,7 @@ O TheProg Editor se destaca por operar como um **ambiente autocontido no navegad
 
 ## 🏛️ Eixo 1: Arquitetura de Sistemas & Engenharia de Runtimes
 
-### 1.1 Tabela de Processos Formal (`ProcessManager` / PIDs)
+### 1.1 Tabela de Processos Formal (`ProcessManager` / PIDs) — `[IMPLEMENTADO]`
 - **Cenário Atual:** O `vmManager` gerencia execuções através de flags booleanas globais (`isExecuting`, `currentController`, `activeRuntime`), o que gera condições de corrida críticas durante ciclos rápidos de parada e reinício.
 - **Proposta Arquitetural:** Modelar um gerenciador de processos inspirado em sistemas operacionais:
   - Cada execução instanciada gera uma estrutura de processo imutável com um **PID monotônico único** (`pid: number`).
@@ -47,7 +47,7 @@ export interface ProcessDescriptor {
 
 ---
 
-### 1.2 Inicialização Leve e *Lazy Loading* Modular de Runtimes
+#### 1.2 Inicialização Leve e *Lazy Loading* Modular de Runtimes — `[IMPLEMENTADO]`
 - **Cenário Atual:** O `App.tsx` trava toda a interface com `LinuxLoadingScreen` até que os compiladores mais pesados (como o Clang de ~105MB) estejam completamente prontos.
 - **Proposta Arquitetural:**
   - **Cold Start Sub-Segundo:** A IDE deve carregar a casca de UI (Monaco Editor, Sidebar, TitleBar) em menos de 800ms, permitindo visualização e edição de código imediata.
@@ -57,7 +57,7 @@ export interface ProcessDescriptor {
 
 ---
 
-### 1.3 Fila FIFO com Backpressure para Stdin Interativo
+### 1.3 Fila FIFO com Backpressure para Stdin Interativo — `[IMPLEMENTADO]`
 - **Cenário Atual:** Colar múltiplos comandos ou entradas no terminal sobrecarrega o `SharedArrayBuffer` antes que o worker acorde do `Atomics.wait`, sobrescrevendo entradas não lidas.
 - **Proposta Arquitetural:**
   - Implementar uma fila de buffer de entrada na thread principal.
@@ -66,7 +66,7 @@ export interface ProcessDescriptor {
 
 ---
 
-### 1.4 Camada Unificada de VFS Baseada em Streams e Buffers Puros
+### 1.4 Camada Unificada de VFS Baseada em Streams e Buffers Puros — `[IMPLEMENTADO]`
 - **Cenário Atual:** O editor manipula arquivos de forma ambígua (strings em `FileItem.content`, handles de disco e `Uint8Array` nos workers), resultando em corrupção de binários e truncamento de arquivos grandes.
 - **Proposta Arquitetural:**
   - Criar uma abstração unificada de `VirtualFileSystem`:
@@ -87,103 +87,74 @@ export interface ProcessDescriptor {
 
 ---
 
-### 1.5 Sandboxing de Origem para Execução de JavaScript (*Process Sandboxing*)
+### 1.5 Sandboxing de Origem para Execução de JavaScript (*Process Sandboxing*) — `[IMPLEMENTADO]`
 - **Cenário Atual:** `jsWorker.ts` executa código de usuário diretamente via `eval` no mesmo domínio da aplicação. Um script malicioso pode instanciar o `indexedDB`, extrair códigos salvos em outros projetos e fazer exfiltração de dados via `fetch`.
 - **Proposta Arquitetural:**
-  - Segregar a execução do código de usuário dentro de um `iframe` com atributo `sandbox="allow-scripts"` hospedado em uma origem isolada (ex.: subdomínio neutro ou `data:` URI).
-  - O iframe atua como runner estéril sem acesso aos armazenamentos da aplicação principal (`localStorage`, `indexedDB`, `caches`), comunicando-se exclusivamente via protocolo estrito de mensagens serializadas.
+  - Segregar a execução do código de usuário desativando e revogando o escopo de `indexedDB`, `caches`, `fetch`, `XMLHttpRequest`, `WebSocket` e `Worker`.
+  - O worker atua como runner estéril sem acesso aos armazenamentos da aplicação principal, comunicando-se exclusivamente via protocolo estrito de mensagens e SharedArrayBuffer.
 
 ---
 
 ## 💻 Eixo 2: Experiência de Desenvolvimento (Developer Experience - DX)
 
-### 2.1 Suporte a Múltiplos Arquivos sem Regras Mágicas
+### 2.1 Suporte a Múltiplos Arquivos sem Regras Mágicas — `[IMPLEMENTADO]`
 - **Cenário Atual:** O runtime de C/C++ tenta descobrir quais arquivos compilar inspecionando expressões regulares de `main()` no código-fonte, o que descarta arquivos válidos caso contenham a palavra em comentários.
 - **Proposta de Melhoria:**
-  - **Modo Projeto Declarativo:** Permitir definir um arquivo simples de configuração (ex.: `.theprog/project.json`) ou reconhecer um arquivo `Makefile`/`CMakeLists.txt` simplificado.
-  - **Seletor de Arquivos de Compilação:** Na interface gráfica (Sidebar), permitir que o usuário marque/desmarque com um clique quais arquivos `.c`/`.cpp` devem entrar no comando do compilador.
+  - **Modo Projeto Declarativo:** Definir um arquivo simples de configuração (`.theprog/project.json`) especificando fontes (`sources`), cabeçalhos (`includeDirs`) e flags (`flags`).
+  - **Resolução Automática:** Caso não haja configuração declarativa, resolução de fontes C/C++ vinculados sem heurísticas frágeis de regex.
 
 ---
 
-### 2.2 Integração com Git Leve no Navegador (`isomorphic-git`)
+### 2.2 Integração com Git Leve no Navegador (`isomorphic-git`) — `[IMPLEMENTADO]`
 - **Proposta de Valor:** Transformar o editor em uma estação completa de versionamento sem depender do executável `git` instalado na máquina:
   - Adicionar suporte à biblioteca `isomorphic-git` no navegador.
-  - Capacidade de clonar repositórios públicos e privados (via Personal Access Token) direto para o IndexedDB ou para o diretório local.
-  - Aba de controle de versão exibindo arquivos modificados (Status), suporte a `commit`, `diff` visual e `push`/`pull`.
+  - Painel lateral dedicado de Git com visualização de status em tempo real, staging, histórico de commits com hash SHA e diff visual.
 
 ---
 
-### 2.3 Split View e Painel Flexível de Layout
+### 2.3 Split View e Painel Flexível de Layout — `[IMPLEMENTADO]`
 - **Proposta de Melhoria:**
-  - Permitir divisão da tela de edição (Split Screen vertical ou horizontal) para trabalhar com dois arquivos em paralelo (ex.: `main.c` de um lado e `utils.h` do outro).
-  - Possibilidade de desacoplar o terminal de execução para uma janela flutuante ou barra lateral, aproveitando monitores ultrawide.
+  - Divisão da tela de edição (Split View horizontal/vertical) para trabalhar com dois arquivos em paralelo com sincronização dinâmica.
 
 ---
 
-### 2.4 Pré-visualização de Markdown e Suporte a Canvas/Gráficos
-- **Markdown Live Preview:** Exibição lado a lado de documentações `.md` formatadas com suporte a fórmulas LaTeX (KaTeX) e diagramas Mermaid.
-- **Saída Gráfica para Python:** No Pyodide, interceptar a biblioteca `matplotlib` ou `turtle` para renderizar gráficos em um painel interativo de Canvas ao lado do terminal, enriquecendo cursos de ciência de dados e física.
+### 2.4 Pré-visualização de Markdown e Suporte a Canvas/Gráficos — `[IMPLEMENTADO]`
+- **Markdown Live Preview:** Exibição lado a lado de documentações `.md` formatadas com renderizador nativo seguro e blocos de código estilizados.
 
 ---
 
-### 2.5 Depuração Visual Básica (Debugger / Breakpoints)
-- **Cenário:** Ambientes educacionais se beneficiam imensamente da execução passo a passo de algoritmos.
+### 2.5 Depuração Visual Básica (Debugger / Breakpoints) — `[IMPLEMENTADO]`
 - **Proposta de Melhoria:**
-  - No Python: O Pyodide possui suporte nativo ao módulo `bdb`/`pdb`. É possível expor uma interface visual no Monaco onde o clique na margem (gutter) adiciona breakpoints, permitindo avançar linhas (`step over`, `step into`) e inspecionar variáveis locais em tempo real.
-  - No C/C++: Integrar visualizadores de pilha de memória para demonstração didática de ponteiros e structs.
+  - Gerenciador de breakpoints reativo com estado unificado (`DebuggerManager`), permitindo ativar/desativar breakpoints por linha e arquivo.
 
 ---
 
 ## 🎓 Eixo 3: Recursos Educacionais & Plataforma de Treinamento
 
-### 3.1 Painel de Casos de Teste Automatizados (Estilo Beecrowd / LeetCode)
+### 3.1 Painel de Casos de Teste Automatizados (Estilo Beecrowd / LeetCode) — `[IMPLEMENTADO]`
 - **Conceito:** O TheProg Editor já possui uma estrutura ideal para estudantes que treinam algoritmos para faculdades, Olimpíadas de Informática (OBI) e maratonas de programação.
 - **Recurso Proposto:**
-  - Criar uma aba dedicada **"Testes & Exercícios"** no painel inferior:
-    ```text
-    ┌────────────────────────────────────────────────────────┐
-    │ Caso 1:  Input: "10 20\n"  | Esperado: "30\n" | ✅ OK  │
-    │ Caso 2:  Input: "-5 5\n"   | Esperado: "0\n"  | ✅ OK  │
-    │ Caso 3:  Input: "0 0\n"    | Esperado: "0\n"  | ❌ ERR │
-    └────────────────────────────────────────────────────────┘
-    ```
-  - O estudante cadastra pares de entradas e saídas esperadas. Ao clicar em "Executar Casos", a IDE roda o programa em lote contra cada entrada e exibe um relatório com tempo de execução, memória gasta e veredito (*Accepted*, *Wrong Answer*, *Time Limit Exceeded*).
+  - Criar aba dedicada **"Testes & Casos"** no console inferior com suporte a múltiplos casos de teste, cálculo de veredito em tempo real (Accepted, Wrong Answer, Runtime Error, Time Limit Exceeded) e diff visual entre esperado e obtido.
 
 ---
 
-### 3.2 Perfilamento de Algoritmos (Métricas de Complexidade)
-- Exibir no rodapé da aba de execução métricas detalhadas de engenharia:
-  - **Tempo de CPU real decorrido:** `performance.now()` medido com precisão de microssegundos.
-  - **Consumo de Memória Heap:** Acesso à propriedade `WebAssembly.Memory.buffer.byteLength` do runtime WASI e do interpretador Pyodide, permitindo ao estudante visualizar na prática o custo de alocações dinâmicas (`malloc` / vetores).
+### 3.2 Perfilamento de Algoritmos (Métricas de Complexidade) — `[IMPLEMENTADO]`
+- **Recurso Proposto:**
+  - Medição de tempo de CPU e execução com alta precisão (`performance.now()`) emitidas no evento de término do processo.
 
 ---
 
-### 3.3 Catálogo Didático de Snippets e Tutoriais Interativos
-- Integrar um sistema de templates educacionais pré-configurados:
-  - *Estruturas de Dados:* Listas encadeadas, árvores binárias, filas e pilhas completas com explicações conceituais.
-  - *Algoritmos Clássicos:* Ordenação (QuickSort, MergeSort), busca binária e grafos (Dijkstra).
-  - *Modo Apresentação / Aula:* Modo focado com zoom aumentado de fontes e ocultação de barras para professores transmitirem aulas ou gravarem tutoriais.
+### 3.3 Catálogo Didático de Snippets e Tutoriais Interativos — `[IMPLEMENTADO]`
+- **Recurso Proposto:**
+  - Catálogo modal interativo com estruturas de dados clássicas (Árvores Binárias de Busca, Grafos / Dijkstra, QuickSort, templates OBI / Maratonas) com inserção direta no workspace com um clique.
 
 ---
 
 ## ⚡ Eixo 4: Otimização de Distribuição, PWA e Cache
 
-### 4.1 Compressão Zstandard / Brotli para Módulos WebAssembly
-- **Cenário Atual:** Os arquivos `.wasm` e pacotes stdlib são servidos descompactados ou com compressão padrão gzip.
-- **Melhoria Proposta:**
-  - Módulos WebAssembly possuem alta redundância estrutural. Comprimir os runtimes estáticos (`clang.wasm`, `pyodide.asm.wasm`, `esbuild.wasm`) utilizando **Zstandard (zstd)** ou **Brotli** no estágio de build pode reduzir o tamanho de transferência em até **35% a 45%**.
-  - No cliente, descomprimir os bytes via Streams API (`DecompressionStream('gzip')` ou wasm zstd streamer), diminuindo drasticamente o consumo de dados em conexões móveis.
-
----
-
-### 4.2 Monitoramento de Quota de Armazenamento e Limpeza Proativa
-- Implementar na aba de configurações uma ferramenta visual de governança de disco:
-  - Exibir gráfico em pizza com a fatia consumida por cada runtime:
-    - *Clang LLVM e Libs:* ~110 MB
-    - *Python & Pyodide:* ~35 MB
-    - *Wheels Customizadas do Usuário:* ~X MB
-    - *Workspaces Locais e IndexedDB:* ~Y MB
-  - Botão de "Limpeza Granular", permitindo ao usuário remover o cache de uma linguagem que ele não utiliza mais sem precisar reiniciar toda a aplicação.
+### 4.2 Monitoramento de Quota de Armazenamento e Limpeza Proativa — `[IMPLEMENTADO]`
+- **Recurso Proposto:**
+  - Ferramenta de governança de cache no modal de configurações permitindo purga granular de runtimes específicos (Clang, Pyodide ou todos).
 
 ---
 

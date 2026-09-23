@@ -1,11 +1,12 @@
-import React from 'react';
-import { Play, Square, Sun, Moon, Wifi, WifiOff, Terminal, Download, FolderOpen, Box } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Square, Sun, Moon, Wifi, WifiOff, Terminal, Download, FolderOpen, Box, BookOpen } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useNetworkStatus } from '../../hooks/useNetworkStatus';
 import { usePwaInstall } from '../../hooks/usePwaInstall';
 import { getRunCapability } from '../../services/languages/runCapability';
 import { APP_VERSION } from '../../config/version';
+import { SnippetLibraryModal } from '../modals/SnippetLibraryModal';
 
 interface TitleBarProps {
   onOpenSettings?: () => void;
@@ -28,6 +29,7 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
   const { theme, toggleTheme } = useTheme();
   const isOnline = useNetworkStatus();
   const { isInstallable, installApp } = usePwaInstall();
+  const [isSnippetModalOpen, setIsSnippetModalOpen] = useState(false);
 
   const capability = getRunCapability(activeFile, runtimes);
 
@@ -157,6 +159,15 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
           </button>
         )}
 
+        {/* Catálogo de Algoritmos & Snippets */}
+        <button
+          onClick={() => setIsSnippetModalOpen(true)}
+          title="Abrir Catálogo de Algoritmos & Estruturas Didáticas"
+          className="p-1 rounded hover:bg-[#d8d8d8] dark:hover:bg-[#2a2d2e] cursor-pointer text-[#333333] dark:text-[#cccccc] transition-colors"
+        >
+          <BookOpen className="w-4 h-4 text-[#007acc] dark:text-[#3794ff]" />
+        </button>
+
         {/* Alternador de Tema */}
         <button
           onClick={toggleTheme}
@@ -166,6 +177,11 @@ export const TitleBar: React.FC<TitleBarProps> = () => {
           {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-slate-700" />}
         </button>
       </div>
+
+      <SnippetLibraryModal
+        isOpen={isSnippetModalOpen}
+        onClose={() => setIsSnippetModalOpen(false)}
+      />
     </header>
   );
 };

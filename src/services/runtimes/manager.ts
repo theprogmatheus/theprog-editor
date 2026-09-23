@@ -77,6 +77,12 @@ class RuntimeManager {
     return { percent, doneBytes, totalBytes, allReady, isLoading, hasError, errorMessage };
   }
 
+  async preload(runtime: RuntimeId): Promise<void> {
+    const adapter = this.adapters.get(runtime);
+    if (!adapter) return;
+    await adapter.preload();
+  }
+
   async preloadAll(): Promise<void> {
     await Promise.allSettled(
       Array.from(this.adapters.values()).map((adapter) => adapter.preload())

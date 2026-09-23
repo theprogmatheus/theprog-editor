@@ -172,7 +172,44 @@ function readBlockingLine(): string | null {
   return null;
 }
 
+function sanitizeGlobalScope(): void {
+  const dangerousProps = [
+    'indexedDB',
+    'caches',
+    'fetch',
+    'XMLHttpRequest',
+    'WebSocket',
+    'Worker',
+    'SharedWorker',
+    'BroadcastChannel',
+    'openDatabase',
+  ];
+
+  for (const prop of dangerousProps) {
+    try {
+      Object.defineProperty(globalThis, prop, {
+        configurable: false,
+        enumerable: false,
+        get() {
+          throw new Error(
+            `Acesso de segurança bloqueado: a API '${prop}' não é permitida no ambiente isolado do TheProg Editor.`
+          );
+        },
+        set() {
+          // Bloqueia sobrescrita
+        },
+      });
+    } catch {
+      try {
+        delete (globalThis as any)[prop];
+      } catch {}
+    }
+  }
+}
+
 function installGlobals(entry: string, argv: string[]): void {
+  sanitizeGlobalScope();
+
   const consoleShim = {
     log: (...args: unknown[]) => writeStdout(formatConsoleArgs(args) + '\n'),
     info: (...args: unknown[]) => writeStdout(formatConsoleArgs(args) + '\n'),
