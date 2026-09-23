@@ -48,26 +48,13 @@ import {
   isTextFileKind,
 } from '../services/languages/registry';
 import { loadPythonWheels, savePythonWheel } from '../services/pythonPackages';
+import { splitPathSegments, isPathValidForCreation } from '../services/fileTree/pathUtils';
 
 export type SystemStatus = 'loading' | 'ready' | 'running' | 'error';
 export type AppScreen = 'welcome' | 'editor';
 
 function isInvalidFileName(name: string): boolean {
-  const trimmed = name.trim();
-  if (
-    !trimmed ||
-    trimmed === '.' ||
-    trimmed === '..' ||
-    trimmed.includes('/') ||
-    trimmed.includes('\\') ||
-    /[<>:"|?*]/.test(trimmed)
-  ) {
-    return true;
-  }
-  for (let i = 0; i < trimmed.length; i++) {
-    if (trimmed.charCodeAt(i) < 32) return true;
-  }
-  return false;
+  return !isPathValidForCreation(name);
 }
 
 interface EditorContextType {
@@ -91,7 +78,8 @@ interface EditorContextType {
   toggleSidebar: () => void;
   sidebarWidth: number;
   setSidebarWidth: (w: number) => void;
-  openFile: (fileId: string) => void;
+  openFile: (fileId: string, options?: { preview?: boolean }) => void;
+  pinTab: (fileId: string) => void;
   closeTab: (fileId: string) => void;
   updateFileContent: (fileId: string, content: string) => void;
   createNewFile: (
@@ -125,6 +113,10 @@ interface EditorContextType {
   setAutoSave: (enabled: boolean) => void;
   autoSaveDelay: number;
   setAutoSaveDelay: (delay: number) => void;
+  compactFolders: boolean;
+  setCompactFolders: (enabled: boolean) => void;
+  previewMode: boolean;
+  setPreviewMode: (enabled: boolean) => void;
   saveActiveFile: () => Promise<void>;
 
   // Telas e Workspaces
@@ -328,6 +320,26 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const setAlwaysOpenLast = useCallback((enabled: boolean) => {
     setAlwaysOpenLastState(enabled);
     localStorage.setItem('theprog_always_open_last_workspace', String(enabled));
+  }, []);
+
+  const [compactFolders, setCompactFoldersState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('theprog_compact_folders');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const setCompactFolders = useCallback((enabled: boolean) => {
+    setCompactFoldersState(enabled);
+    localStorage.setItem('theprog_compact_folders', String(enabled));
+  }, []);
+
+  const [previewMode, setPreviewModeState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('theprog_preview_mode');
+    return saved !== null ? saved === 'true' : true;
+  });
+
+  const setPreviewMode = useCallback((enabled: boolean) => {
+    setPreviewModeState(enabled);
+    localStorage.setItem('theprog_preview_mode', String(enabled));
   }, []);
 
   const saveTimeouts = useRef<Map<string, any>>(new Map());
@@ -895,19 +907,46 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   ]);
 
   const openFile = useCallback(
-    (fileId: string) => {
+    (fileId: string, options?: { preview?: boolean }) => {
       const file = files.find((f) => f.id === fileId);
       if (!file || file.isFolder) return;
 
       setActiveFileId(file.id);
 
+      const isPreview = options?.preview ?? previewMode;
+
       setTabs((prevTabs) => {
         const alreadyOpen = prevTabs.find((t) => t.fileId === file.id || t.filePath === file.path);
         if (alreadyOpen) {
-          if (alreadyOpen.fileId !== file.id) {
-            return prevTabs.map((t) => (t.filePath === file.path ? { ...t, fileId: file.id } : t));
+          return prevTabs.map((t) => {
+            if (t.fileId === file.id || t.filePath === file.path) {
+              return {
+                ...t,
+                fileId: file.id,
+                filePath: file.path,
+                title: file.name,
+                language: file.language,
+                isPreview: options?.preview === false ? false : t.isPreview,
+              };
+            }
+            return t;
+          });
+        }
+
+        // Se for para abrir em modo preview, substitui a aba preview existente se não tiver modificações
+        if (isPreview) {
+          const previewIdx = prevTabs.findIndex((t) => t.isPreview && !t.isDirty);
+          if (previewIdx !== -1) {
+            const nextTabs = [...prevTabs];
+            nextTabs[previewIdx] = {
+              fileId: file.id,
+              filePath: file.path,
+              title: file.name,
+              language: file.language,
+              isPreview: true,
+            };
+            return nextTabs;
           }
-          return prevTabs;
         }
 
         return [
@@ -917,12 +956,19 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             filePath: file.path,
             title: file.name,
             language: file.language,
+            isPreview,
           },
         ];
       });
     },
-    [files]
+    [files, previewMode]
   );
+
+  const pinTab = useCallback((fileId: string) => {
+    setTabs((prevTabs) =>
+      prevTabs.map((t) => (t.fileId === fileId ? { ...t, isPreview: false } : t))
+    );
+  }, []);
 
   const closeTab = useCallback(
     (fileId: string) => {
@@ -1010,7 +1056,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     );
 
     setTabs((prev) =>
-      prev.map((t) => (t.fileId === fileId ? { ...t, isDirty: true } : t))
+      prev.map((t) => (t.fileId === fileId ? { ...t, isDirty: true, isPreview: false } : t))
     );
 
     if (saveTimeouts.current.has(fileId)) {
@@ -1058,92 +1104,115 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       parentId: string | null = null,
       initialContent: string = ''
     ): Promise<string> => {
-      const cleanName = name.trim();
-      if (isInvalidFileName(cleanName)) {
-        throw new Error('Nome de arquivo inválido. Evite caracteres especiais (/ \\ : * ? " < > |) e caminhos relativos.');
+      const cleanInput = name.trim();
+      if (!isPathValidForCreation(cleanInput)) {
+        throw new Error(
+          'Nome de arquivo inválido. Evite caracteres especiais (/ \\ : * ? " < > |) e caminhos relativos.'
+        );
       }
-      const language = detectLanguage(cleanName);
 
-      let filePath = '/' + cleanName;
-      if (parentId) {
-        const parent = files.find((f) => f.id === parentId);
-        if (parent) {
-          filePath = `${parent.path}/${cleanName}`;
+      const segments = splitPathSegments(cleanInput);
+      if (segments.length === 0) {
+        throw new Error('Nome de arquivo inválido.');
+      }
+
+      let currentParentId = parentId;
+      let currentParentPath = '';
+      if (currentParentId) {
+        const parent = filesRef.current.find((f) => f.id === currentParentId);
+        if (parent) currentParentPath = parent.path;
+      }
+
+      const createdItems: FileItem[] = [];
+      let finalItemId = '';
+
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        const isLeaf = i === segments.length - 1;
+        const itemIsFolder = isLeaf ? isFolder : true;
+        const itemPath = currentParentPath ? `${currentParentPath}/${seg}` : `/${seg}`;
+
+        // Procura se já existe no estado atual ou nos itens recém-criados
+        const existing =
+          filesRef.current.find((f) => f.path === itemPath) ||
+          createdItems.find((f) => f.path === itemPath);
+
+        if (existing) {
+          currentParentId = existing.id;
+          currentParentPath = existing.path;
+          if (isLeaf) {
+            finalItemId = existing.id;
+          }
+          continue;
         }
-      }
 
-      // ID determinístico para arquivos locais do computador (garante sincronização perfeita com scanner de disco)
-      const id =
-        activeWorkspace.type === 'local'
-          ? 'local-' + filePath.replace(/[^a-zA-Z0-9_-]/g, '_')
-          : 'f-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+        const id =
+          activeWorkspace.type === 'local'
+            ? 'local-' + itemPath.replace(/[^a-zA-Z0-9_-]/g, '_')
+            : 'f-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
 
-      const newFile: FileItem = {
-        id,
-        name: cleanName,
-        path: filePath,
-        isFolder,
-        parentId,
-        language,
-        updatedAt: Date.now(),
-        content: isFolder ? undefined : initialContent,
-      };
+        const language = itemIsFolder ? 'plaintext' : detectLanguage(seg);
+        const content = itemIsFolder ? undefined : isLeaf ? initialContent : '';
 
-      // Notifica o sistema de auto-sync de gravação interna prévia para evitar race conditions no disco
-      recordInternalWrite(filePath);
+        const newItem: FileItem = {
+          id,
+          name: seg,
+          path: itemPath,
+          isFolder: itemIsFolder,
+          parentId: currentParentId,
+          language,
+          updatedAt: Date.now(),
+          content,
+        };
 
-      if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
-        if (isFolder) {
-          await createFolderOnDisk(activeWorkspace.handle, filePath);
+        recordInternalWrite(itemPath);
+
+        if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
+          if (itemIsFolder) {
+            await createFolderOnDisk(activeWorkspace.handle, itemPath);
+          } else {
+            await createFileOnDisk(activeWorkspace.handle, itemPath);
+            if (content) {
+              await saveFileToDisk(activeWorkspace.handle, itemPath, content);
+            }
+          }
         } else {
-          await createFileOnDisk(activeWorkspace.handle, filePath);
-          if (initialContent) {
-            await saveFileToDisk(activeWorkspace.handle, filePath, initialContent);
-          }
+          await saveFileToStorage(newItem);
         }
-      } else {
-        await saveFileToStorage(newFile);
+
+        recordInternalWrite(itemPath);
+
+        createdItems.push(newItem);
+        currentParentId = id;
+        currentParentPath = itemPath;
+        if (isLeaf) {
+          finalItemId = id;
+        }
       }
 
-      recordInternalWrite(filePath);
-
-      setFiles((prev) => {
-        const exists = prev.some((f) => f.id === id || f.path === filePath);
-        if (exists) {
-          return prev.map((f) =>
-            f.id === id || f.path === filePath ? { ...newFile, ...f, id, path: filePath, name: cleanName } : f
-          );
-        }
-        return [...prev, newFile];
-      });
-
-      if (!isFolder) {
-        vmManager.syncFile(newFile.name, newFile.content || '');
-        setActiveFileId(id);
-        setTabs((prevTabs) => {
-          const alreadyOpen = prevTabs.find((t) => t.fileId === id || t.filePath === filePath);
-          if (alreadyOpen) {
-            return prevTabs.map((t) =>
-              t.fileId === id || t.filePath === filePath
-                ? { ...t, fileId: id, filePath, title: cleanName, language }
-                : t
-            );
+      if (createdItems.length > 0) {
+        setFiles((prev) => {
+          const map = new Map(prev.map((f) => [f.path, f]));
+          for (const item of createdItems) {
+            map.set(item.path, item);
           }
-          return [
-            ...prevTabs,
-            {
-              fileId: id,
-              filePath,
-              title: cleanName,
-              language,
-            },
-          ];
+          return Array.from(map.values());
         });
       }
 
-      return id;
+      const leafItem =
+        createdItems.find((f) => f.id === finalItemId) ||
+        filesRef.current.find((f) => f.id === finalItemId);
+
+      if (leafItem && !leafItem.isFolder) {
+        vmManager.syncFile(leafItem.name, leafItem.content || '');
+        setActiveFileId(leafItem.id);
+        openFile(leafItem.id, { preview: false });
+      }
+
+      return finalItemId;
     },
-    [files, activeWorkspace]
+    [activeWorkspace, openFile]
   );
 
   const deleteFile = useCallback(
@@ -1625,6 +1694,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         sidebarWidth,
         setSidebarWidth: handleSetSidebarWidth,
         openFile,
+        pinTab,
         closeTab,
         updateFileContent,
         saveActiveFile,
@@ -1654,6 +1724,10 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setAutoSave,
         autoSaveDelay,
         setAutoSaveDelay,
+        compactFolders,
+        setCompactFolders,
+        previewMode,
+        setPreviewMode,
 
         // Telas e Workspaces
         currentScreen,

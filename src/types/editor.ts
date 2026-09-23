@@ -39,6 +39,7 @@ export interface EditorTab {
   title: string;
   language: SupportedLanguage;
   isDirty?: boolean;
+  isPreview?: boolean;
 }
 
 export type ThemeMode = 'dark' | 'light';
@@ -58,4 +59,6 @@ export interface UserSettings {
   theme: ThemeMode;
   autoSave: boolean;
   autoSaveDelay: number;
+  compactFolders?: boolean;
+  previewMode?: boolean;
 }

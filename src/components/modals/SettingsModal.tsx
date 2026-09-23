@@ -20,6 +20,8 @@ import {
   User,
   GraduationCap,
   FolderOpen,
+  Folder,
+  Eye,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -90,6 +92,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     activeWorkspace,
     alwaysOpenLast,
     setAlwaysOpenLast,
+    compactFolders,
+    setCompactFolders,
+    previewMode,
+    setPreviewMode,
     runtimes,
     preloadRuntimes,
     isSystemReady,
@@ -341,6 +347,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 </div>
                 <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
                   Ao inicializar o TheProg Editor, abre diretamente o último diretório do computador ou Sandbox utilizado, pulando a tela inicial.
+                </p>
+              </div>
+
+              {/* Compact Folders */}
+              <div className="p-3.5 rounded-xl bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 font-semibold text-black dark:text-white">
+                    <Folder className="w-4 h-4 text-amber-500" />
+                    <span>Compact Folders (Compactação de Pastas)</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={compactFolders}
+                      onChange={(e) => setCompactFolders(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-[#007acc]"></div>
+                  </label>
+                </div>
+                <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+                  Compacta visualmente pastas encadeadas de filho único (ex.: src / main / c) em uma única linha horizontal no explorador.
+                </p>
+              </div>
+
+              {/* Modo Preview */}
+              <div className="p-3.5 rounded-xl bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 font-semibold text-black dark:text-white">
+                    <Eye className="w-4 h-4 text-sky-500" />
+                    <span>Modo Preview de Arquivos (Abas Transitórias)</span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={previewMode}
+                      onChange={(e) => setPreviewMode(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-[#007acc]"></div>
+                  </label>
+                </div>
+                <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+                  Abre arquivos com um clique único em modo provisório com título em itálico, reaproveitando a mesma aba até que seja fixada com duplo clique ou editada.
                 </p>
               </div>
 

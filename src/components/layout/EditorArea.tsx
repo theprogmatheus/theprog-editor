@@ -21,6 +21,7 @@ export const EditorArea: React.FC = () => {
     activeFile,
     files,
     openFile,
+    pinTab,
     closeTab,
     reorderTabs,
     updateFileContent,
@@ -294,6 +295,7 @@ export const EditorArea: React.FC = () => {
                 setDragOverTabIndex(null);
               }}
               onClick={() => openFile(tab.fileId)}
+              onDoubleClick={() => pinTab(tab.fileId)}
               data-tab-item="true"
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -313,7 +315,13 @@ export const EditorArea: React.FC = () => {
                   : 'bg-[#ececec] dark:bg-[#181818] text-[#616161] dark:text-[#969696] hover:bg-[#f3f3f3] dark:hover:bg-[#252526] hover:text-black dark:hover:text-[#cccccc]'
               }`}
             >
-              <span className="truncate max-w-[140px]">{tab.title}</span>
+              <span
+                className={`truncate max-w-[140px] ${
+                  tab.isPreview ? 'italic font-normal text-neutral-500 dark:text-neutral-400' : ''
+                }`}
+              >
+                {tab.title}
+              </span>
 
               {/* Indicador de modificado ou botão fechar */}
               <div className="w-4 h-4 flex items-center justify-center">
@@ -388,6 +396,17 @@ export const EditorArea: React.FC = () => {
           style={{ top: tabContextMenu.y, left: tabContextMenu.x }}
           className="fixed z-50 min-w-[150px] py-1 bg-[#f3f3f3] dark:bg-[#252526] text-[#333333] dark:text-[#cccccc] rounded shadow-lg border border-[#cccccc] dark:border-[#454545] text-xs select-none"
         >
+          {tabs.find((t) => t.fileId === tabContextMenu.fileId)?.isPreview && (
+            <button
+              onClick={() => {
+                pinTab(tabContextMenu.fileId);
+                setTabContextMenu(null);
+              }}
+              className="w-full px-3 py-1.5 flex items-center space-x-2 hover:bg-[#007acc] hover:text-white cursor-pointer transition-colors text-left font-medium"
+            >
+              <span>Fixar Aba</span>
+            </button>
+          )}
           <button
             onClick={() => {
               closeTab(tabContextMenu.fileId);
