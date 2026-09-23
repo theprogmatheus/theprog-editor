@@ -198,7 +198,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isStorageLoaded, setIsStorageLoaded] = useState<boolean>(false);
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     const saved = localStorage.getItem('theprog_sidebar_width');
-    return saved ? Math.max(180, Math.min(600, parseInt(saved, 10))) : 240;
+    const parsed = saved ? parseInt(saved, 10) : NaN;
+    // Padrão inicial expandido para 280px para comportar confortavelmente todos os controles
+    if (!isNaN(parsed) && parsed >= 260) {
+      return Math.min(600, parsed);
+    }
+    return 280;
   });
 
   // Tamanho da fonte do Monaco Editor
@@ -411,7 +416,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           localStorage.setItem('theprog_sidebar_open', String(session.isSidebarOpen));
         }
         if (session.sidebarWidth !== undefined) {
-          const clampedW = Math.max(180, Math.min(600, session.sidebarWidth));
+          const initialWidth = session.sidebarWidth < 260 ? 280 : session.sidebarWidth;
+          const clampedW = Math.max(180, Math.min(600, initialWidth));
           setSidebarWidth(clampedW);
           localStorage.setItem('theprog_sidebar_width', String(clampedW));
         }
@@ -512,7 +518,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           localStorage.setItem('theprog_sidebar_open', String(session.isSidebarOpen));
         }
         if (session.sidebarWidth !== undefined) {
-          const clampedW = Math.max(180, Math.min(600, session.sidebarWidth));
+          const initialWidth = session.sidebarWidth < 260 ? 280 : session.sidebarWidth;
+          const clampedW = Math.max(180, Math.min(600, initialWidth));
           setSidebarWidth(clampedW);
           localStorage.setItem('theprog_sidebar_width', String(clampedW));
         }

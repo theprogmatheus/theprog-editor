@@ -641,13 +641,6 @@ export const Sidebar: React.FC = () => {
               <FolderPlus className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => setExpandedFolders(new Set())}
-              title="Colapsar Todas as Pastas"
-              className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
-            >
-              <ChevronsDownUp className="w-3.5 h-3.5" />
-            </button>
-            <button
               onClick={() => setIsFilterOpen((prev) => !prev)}
               title="Filtrar Arquivos (Ctrl+F)"
               className={`p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] cursor-pointer transition-colors ${
@@ -673,11 +666,11 @@ export const Sidebar: React.FC = () => {
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[#007acc]' : ''}`} />
             </button>
             <button
-              onClick={openWorkspacePicker}
-              title="Trocar Pasta / Espaço de Trabalho"
+              onClick={() => setExpandedFolders(new Set())}
+              title="Colapsar Todas as Pastas"
               className="p-1 rounded hover:bg-[#e8e8e8] dark:hover:bg-[#37373d] text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white cursor-pointer"
             >
-              <FolderOpen className="w-3.5 h-3.5" />
+              <ChevronsDownUp className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={toggleSidebar}
@@ -760,16 +753,6 @@ export const Sidebar: React.FC = () => {
                 {activeWorkspace.type === 'local' ? 'LOCAL' : 'SANDBOX'}
               </span>
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                openWorkspacePicker();
-              }}
-              title="Trocar Pasta / Espaço de Trabalho"
-              className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer text-[#616161] dark:text-[#aaaaaa] hover:text-black dark:hover:text-white transition-opacity shrink-0"
-            >
-              <FolderOpen className="w-3.5 h-3.5" />
-            </button>
           </div>
 
           {isSectionOpen && (
