@@ -104,6 +104,25 @@ export async function getDb(): Promise<IDBPDatabase> {
           db.createObjectStore('runtime_assets');
         }
       },
+      blocked() {
+        console.warn('Atualização do IndexedDB bloqueada por outra aba.');
+      },
+      blocking(_currentVersion, _blockedVersion, event) {
+        console.warn('Fechando conexão do IndexedDB para permitir atualização em outra aba.');
+        try {
+          (event.target as any)?.result?.close?.();
+        } catch {
+          // ignore
+        }
+        dbPromise = null;
+      },
+      terminated() {
+        console.error('Conexão do IndexedDB terminada inesperadamente pelo navegador.');
+        dbPromise = null;
+      },
+    }).catch((err) => {
+      dbPromise = null;
+      throw err;
     });
   }
   return dbPromise;

@@ -64,37 +64,42 @@ export async function listPythonPackages(workspace: ActiveWorkspace): Promise<Py
   return manifest?.packages || [];
 }
 
+let saveWheelMutex = Promise.resolve();
+
 export async function savePythonWheel(
   workspace: ActiveWorkspace,
   wheel: InstalledWheel,
   pyodideVersion: string
 ): Promise<void> {
-  try {
-    let manifest = await readManifest(workspace);
-    if (!manifest || manifest.pyodideVersion !== pyodideVersion) {
-      manifest = { pyodideVersion, packages: [] };
-    }
+  saveWheelMutex = saveWheelMutex.then(async () => {
+    try {
+      let manifest = await readManifest(workspace);
+      if (!manifest || manifest.pyodideVersion !== pyodideVersion) {
+        manifest = { pyodideVersion, packages: [] };
+      }
 
-    const handle = getLocalHandle(workspace);
-    if (handle) {
-      await saveFileToDisk(handle, `${PY_PACKAGES_DIR}/${wheel.fileName}`, wheel.data);
-    } else {
-      await setRuntimeAsset(`${WHEEL_ASSET_PREFIX}${wheel.fileName}`, {
-        fileName: wheel.fileName,
-        name: wheel.name,
-        version: wheel.version,
-        data: wheel.data,
-      });
-    }
+      const handle = getLocalHandle(workspace);
+      if (handle) {
+        await saveFileToDisk(handle, `${PY_PACKAGES_DIR}/${wheel.fileName}`, wheel.data);
+      } else {
+        await setRuntimeAsset(`${WHEEL_ASSET_PREFIX}${wheel.fileName}`, {
+          fileName: wheel.fileName,
+          name: wheel.name,
+          version: wheel.version,
+          data: wheel.data,
+        });
+      }
 
-    manifest.packages = [
-      ...manifest.packages.filter((entry) => entry.fileName !== wheel.fileName),
-      { name: wheel.name, version: wheel.version, fileName: wheel.fileName },
-    ];
-    await writeManifest(workspace, manifest);
-  } catch (err) {
-    console.warn('Não foi possível persistir a wheel do Python:', err);
-  }
+      manifest.packages = [
+        ...manifest.packages.filter((entry) => entry.fileName !== wheel.fileName),
+        { name: wheel.name, version: wheel.version, fileName: wheel.fileName },
+      ];
+      await writeManifest(workspace, manifest);
+    } catch (err) {
+      console.warn('Não foi possível persistir a wheel do Python:', err);
+    }
+  });
+  return saveWheelMutex;
 }
 
 export async function loadPythonWheels(

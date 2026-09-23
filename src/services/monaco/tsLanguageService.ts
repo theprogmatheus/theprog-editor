@@ -2,7 +2,12 @@ import type * as Monaco from 'monaco-editor';
 import type { FileItem } from '../../types/editor';
 
 let isRegistered = false;
-const syncedLibs = new Map<string, string>();
+interface SyncedLibEntry {
+  content: string;
+  disposables: Monaco.IDisposable[];
+}
+
+const syncedLibs = new Map<string, SyncedLibEntry>();
 
 /**
  * Configura o serviço TypeScript/JavaScript nativo do Monaco:
@@ -55,16 +60,31 @@ export function setupTsLanguageService(monaco: typeof Monaco): void {
  */
 export function syncWorkspaceTsFiles(monaco: typeof Monaco, files: FileItem[]): void {
   const ts = monaco.typescript;
+  const currentUris = new Set<string>();
 
   for (const file of files) {
     if (file.isFolder || typeof file.content !== 'string') continue;
     if (!/\.(ts|js|mjs|cjs)$/.test(file.name)) continue;
 
     const uri = `file://${file.path.startsWith('/') ? file.path : `/${file.path}`}`;
-    if (syncedLibs.get(uri) === file.content) continue;
-    syncedLibs.set(uri, file.content);
+    currentUris.add(uri);
 
-    ts.typescriptDefaults.addExtraLib(file.content, uri);
-    ts.javascriptDefaults.addExtraLib(file.content, uri);
+    const existing = syncedLibs.get(uri);
+    if (existing) {
+      if (existing.content === file.content) continue;
+      existing.disposables.forEach((d) => d.dispose());
+    }
+
+    const d1 = ts.typescriptDefaults.addExtraLib(file.content, uri);
+    const d2 = ts.javascriptDefaults.addExtraLib(file.content, uri);
+    syncedLibs.set(uri, { content: file.content, disposables: [d1, d2] });
+  }
+
+  // Remove e descarta bibliotecas de arquivos apagados ou renomeados
+  for (const [uri, entry] of syncedLibs.entries()) {
+    if (!currentUris.has(uri)) {
+      entry.disposables.forEach((d) => d.dispose());
+      syncedLibs.delete(uri);
+    }
   }
 }

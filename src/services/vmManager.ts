@@ -26,6 +26,8 @@ class VMManager {
   private activeRuntime: RuntimeId | null = null;
   private isAwaitingProgramInput: boolean = false;
   private stdinInputBuffer: string = '';
+  private stdinQueue: string[] = [];
+  private executionEpoch: number = 0;
   private lastRunWasCached = false;
 
   constructor() {
@@ -128,6 +130,7 @@ class VMManager {
     this.isExecuting = false;
     this.isAwaitingProgramInput = false;
     this.stdinInputBuffer = '';
+    this.stdinQueue = [];
     this.setStatus('ready', 'Execução interrompida');
   }
 
@@ -161,11 +164,19 @@ class VMManager {
         const full = this.stdinInputBuffer + data.replace(/\r\n|\r/g, '\n');
         const lines = full.split('\n');
         const remaining = lines.pop() || '';
+        this.stdinInputBuffer = remaining;
+
         for (const line of lines) {
           this.emitExecutionOutput(line + '\r\n');
-          this.currentController?.sendStdin(line + '\n');
+          this.stdinQueue.push(line + '\n');
         }
-        this.stdinInputBuffer = remaining;
+
+        if (this.isAwaitingProgramInput && this.stdinQueue.length > 0) {
+          const next = this.stdinQueue.shift()!;
+          this.isAwaitingProgramInput = false;
+          this.currentController?.sendStdin(next);
+        }
+
         if (remaining) {
           this.emitExecutionOutput(remaining);
         }
@@ -211,9 +222,11 @@ class VMManager {
     this.clearExecutionTerminal();
     this.setActiveTab('environment');
 
+    const executionToken = ++this.executionEpoch;
     this.isExecuting = true;
     this.activeRuntime = plan.runtime;
     this.lastRunWasCached = false;
+    this.stdinQueue = [];
     this.setStatus('running', plan.statusMessage);
 
     const io: RuntimeIO = {
@@ -221,8 +234,14 @@ class VMManager {
       onEnvironmentOutput: (text) => this.emitEnvironmentOutput(text),
       onPhaseChange: (phase) => this.setActiveTab(phase),
       onNeedStdin: () => {
-        this.isAwaitingProgramInput = true;
-        this.stdinInputBuffer = '';
+        if (this.stdinQueue.length > 0) {
+          const next = this.stdinQueue.shift()!;
+          this.isAwaitingProgramInput = false;
+          this.currentController?.sendStdin(next);
+        } else {
+          this.isAwaitingProgramInput = true;
+          this.stdinInputBuffer = '';
+        }
       },
       onControllerReady: (controller) => {
         this.currentController = controller;
@@ -241,6 +260,10 @@ class VMManager {
     } catch (err: any) {
       this.emitExecutionOutput(`\r\n\x1b[31m[Erro na execução: ${err?.message || err}]\x1b[0m\r\n`);
       exitCode = 1;
+    } finally {
+      if (this.executionEpoch !== executionToken) {
+        return;
+      }
     }
 
     const durationMs = performance.now() - startTime;
@@ -251,6 +274,7 @@ class VMManager {
     this.activeRuntime = null;
     this.isAwaitingProgramInput = false;
     this.stdinInputBuffer = '';
+    this.stdinQueue = [];
     this.isExecuting = false;
 
     this.setStatus(exitCode === 0 ? 'ready' : 'error', exitCode === 0 ? 'Concluído' : 'Finalizado com erro');

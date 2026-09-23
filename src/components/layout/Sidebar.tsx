@@ -157,9 +157,37 @@ export const Sidebar: React.FC = () => {
     }
   };
 
+  const isInvalidItemName = (name: string): boolean => {
+    const trimmed = name.trim();
+    if (
+      !trimmed ||
+      trimmed === '.' ||
+      trimmed === '..' ||
+      trimmed.includes('/') ||
+      trimmed.includes('\\') ||
+      /[<>:"/\\|?*]/.test(trimmed)
+    ) {
+      return true;
+    }
+    for (let i = 0; i < trimmed.length; i++) {
+      if (trimmed.charCodeAt(i) < 32) return true;
+    }
+    return false;
+  };
+
   const handleConfirmCreate = async () => {
-    if (creatingState && newItemName.trim()) {
-      await createNewFile(newItemName.trim(), creatingState.isFolder, creatingState.parentId);
+    const trimmed = newItemName.trim();
+    if (creatingState && trimmed) {
+      if (isInvalidItemName(trimmed)) {
+        alert('Nome de arquivo ou pasta inválido. Evite caracteres especiais (/ \\ : * ? " < > |) e caminhos relativos.');
+        return;
+      }
+      try {
+        await createNewFile(trimmed, creatingState.isFolder, creatingState.parentId);
+      } catch (err: any) {
+        alert(err?.message || 'Falha ao criar item');
+        return;
+      }
     }
     setCreatingState(null);
     setNewItemName('');
@@ -177,8 +205,18 @@ export const Sidebar: React.FC = () => {
   };
 
   const handleConfirmRename = async (fileId: string) => {
-    if (editingName.trim()) {
-      await renameFile(fileId, editingName.trim());
+    const trimmed = editingName.trim();
+    if (trimmed) {
+      if (isInvalidItemName(trimmed)) {
+        alert('Nome de arquivo ou pasta inválido. Evite caracteres especiais (/ \\ : * ? " < > |) e caminhos relativos.');
+        return;
+      }
+      try {
+        await renameFile(fileId, trimmed);
+      } catch (err: any) {
+        alert(err?.message || 'Falha ao renomear item');
+        return;
+      }
     }
     setEditingId(null);
   };

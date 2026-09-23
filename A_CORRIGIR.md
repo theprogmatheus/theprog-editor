@@ -13,35 +13,35 @@ Auditoria exaustiva da base de código do **TheProg Editor** focada em falhas si
 
 | # | Gravidade | Título Direto do Bug | Arquivo Principal | Linhas | Status |
 |---|-----------|----------------------|-------------------|--------|--------|
-| 1 | **CRÍTICO** | Sobrescrita e Destruição Irreversível de Arquivos > 5MB no Disco | `src/services/localFs.ts` / `src/context/EditorContext.tsx` | `:147-160`, `:903-951` | [ ] |
-| 2 | **CRÍTICO** | Corrupção de Arquivos Binários Gerados em WASI/Python via UTF-8 | `src/context/EditorContext.tsx` | `:1258-1340` | [ ] |
-| 3 | **CRÍTICO** | Travamento Permanente (Hang Infinito e Leak) ao Interromper WASI | `src/services/cCompiler.ts` / `src/services/runtimes/clangRuntime.ts` | `:370-452`, `:85-93` | [ ] |
-| 4 | **CRÍTICO** | Corrida de Execução no `vmManager`: Ausência de Token/Epoch | `src/services/vmManager.ts` | `:115-132`, `:205-267` | [ ] |
-| 5 | **CRÍTICO** | Deadlock no Worker Python e Roteamento Incorreto de Mensagens | `src/services/runtimes/pythonRuntime.ts` / `src/workers/pythonWorker.ts` | `:138-174`, `:216-292` | [ ] |
-| 6 | **CRÍTICO** | Alocação Incondicional de `SharedArrayBuffer` sem Suporte a COOP/COEP | `src/services/runtimes/pythonRuntime.ts` / `src/services/runtimes/jsRuntime.ts` | `:294`, `:203` | [ ] |
-| 7 | **ALTO** | Corrida na Persistência de Wheels Python Quebrando Uso Offline | `src/services/pythonPackages.ts` / `src/workers/pythonWorker.ts` | `:67-98`, `:294-336` | [ ] |
-| 8 | **ALTO** | Perda de Entrada em Digitação Rápida ou Paste Multilinha (SAB/Atomics) | `src/services/vmManager.ts` / `src/services/runtimes/pythonRuntime.ts` | `:160-173`, `:312-320` | [ ] |
-| 9 | **ALTO** | Escopo Reduzido em `getFilesInProjectScope` Quebra Módulos e Includes | `src/context/EditorContext.tsx` | `:1163-1181`, `:1224-1246` | [ ] |
-| 10 | **ALTO** | Bloqueio Total da Aplicação (App Brick/DoS) em Falha do Clang | `src/App.tsx` / `src/context/EditorContext.tsx` | `:86-95`, `:1135-1140` | [ ] |
-| 11 | **ALTO** | Auto-Sync Sobrescreve Edições Ativas do Usuário em Arquivos Externos | `src/context/EditorContext.tsx` | `:758-787` | [ ] |
-| 12 | **ALTO** | Gravações Fire-and-Forget Limpam `isDirty` Mesmo em Falha | `src/context/EditorContext.tsx` / `src/services/localFs.ts` | `:943-963`, `:190-214` | [ ] |
-| 13 | **ALTO** | `moveFileItem` usa `move()` de 1 Argumento e Viola Unique Index no IDB | `src/context/EditorContext.tsx` / `src/services/localFs.ts` / `storage.ts` | `:1407-1456`, `:291-344`, `:92` | [ ] |
-| 14 | **ALTO** | Encerramento Prematuro de Código Assíncrono no Worker JS/TS | `src/workers/jsWorker.ts` / `src/services/runtimes/jsRuntime.ts` | `:106-112`, `:264-274` | [ ] |
-| 15 | **ALTO** | Auto-Sync Remove Arquivos Dirty e Trata Scan Parcial como Exclusão | `src/context/EditorContext.tsx` / `src/services/localFs.ts` | `:746-756`, `:357-409` | [ ] |
-| 16 | **ALTO** | `openDB` sem Handlers `blocked`/`blocking`/`terminated` Trava Workspace | `src/services/storage.ts` | `:85-110`, `:112-125` | [ ] |
-| 17 | **ALTO** | Poluição Persistente de `sys.modules` no Python Impede Atualizações | `src/workers/pythonWorker.ts` | `:227-263` | [ ] |
-| 18 | **ALTO** | Download de ZIP do Workspace Trunca Todos os Binários para 0 Bytes | `src/context/EditorContext.tsx` | `:611-632` | [ ] |
-| 19 | **ALTO** | Duplicação de Cache e Estouro de Quota de Armazenamento no PWA | `src/sw.ts` / `vite.config.ts` | `:35, :72-130`, `:94-99` | [ ] |
-| 20 | **ALTO** | Memory Leak Progressivo no Monaco por Acúmulo de `addExtraLib` | `src/services/monaco/tsLanguageService.ts` | `:56-70` | [ ] |
-| 21 | **MÉDIO** | Cache de Compilação C/C++ Ilimitado com Risco de OOM na Aba | `src/services/cCompiler.ts` | `:227-250`, `:329-332` | [ ] |
-| 22 | **MÉDIO** | `pythonRuntime.pending` sem Timeout e sem Rejeição em Erro do Worker | `src/services/runtimes/pythonRuntime.ts` | `:42`, `:77-88`, `:360-401` | [ ] |
-| 23 | **MÉDIO** | Análise Semântica de C/C++ Síncrona na Thread de UI no Monaco | `src/services/monaco/cLanguageService.ts` | `:325-327`, `:860`, `:1076` | [ ] |
-| 24 | **MÉDIO** | Fechamento de Aba ou Navegação sem Confirmação de Conteúdo Dirty | `src/context/EditorContext.tsx` | `:873-891` | [ ] |
-| 25 | **MÉDIO** | Identidade de Workspace Local Baseada Exclusivamente no Nome da Pasta | `src/context/EditorContext.tsx` | `:319-320`, `:391-398`, `:805` | [ ] |
-| 26 | **BAIXO** | Efeitos Colaterais Impuros dentro de Updaters React `setFiles` | `src/context/EditorContext.tsx` | `:943-957`, `:1260-1343` | [ ] |
-| 27 | **BAIXO** | Mascaramento Indevido de Alterações por `recordInternalWrite` Prévio | `src/services/localFs.ts` | `:198`, `:213` | [ ] |
-| 28 | **BAIXO** | Ausência de Sanitização de Caracteres Especiais em `createNewFile` | `src/context/EditorContext.tsx` / `Sidebar.tsx` | `:968-1050`, `:160-166` | [ ] |
-| 29 | **BAIXO** | Truncamento Rígido de Entradas no Terminal a 65.520 Bytes | `src/workers/wasmWorker.ts` / `src/workers/jsWorker.ts` | `:126-137`, `:165-171` | [ ] |
+| 1 | **CRÍTICO** | Sobrescrita e Destruição Irreversível de Arquivos > 5MB no Disco | `src/services/localFs.ts` / `src/context/EditorContext.tsx` | `:147-160`, `:903-951` | [X] |
+| 2 | **CRÍTICO** | Corrupção de Arquivos Binários Gerados em WASI/Python via UTF-8 | `src/context/EditorContext.tsx` | `:1258-1340` | [X] |
+| 3 | **CRÍTICO** | Travamento Permanente (Hang Infinito e Leak) ao Interromper WASI | `src/services/cCompiler.ts` / `src/services/runtimes/clangRuntime.ts` | `:370-452`, `:85-93` | [X] |
+| 4 | **CRÍTICO** | Corrida de Execução no `vmManager`: Ausência de Token/Epoch | `src/services/vmManager.ts` | `:115-132`, `:205-267` | [X] |
+| 5 | **CRÍTICO** | Deadlock no Worker Python e Roteamento Incorreto de Mensagens | `src/services/runtimes/pythonRuntime.ts` / `src/workers/pythonWorker.ts` | `:138-174`, `:216-292` | [X] |
+| 6 | **CRÍTICO** | Alocação Incondicional de `SharedArrayBuffer` sem Suporte a COOP/COEP | `src/services/runtimes/pythonRuntime.ts` / `src/services/runtimes/jsRuntime.ts` | `:294`, `:203` | [X] |
+| 7 | **ALTO** | Corrida na Persistência de Wheels Python Quebrando Uso Offline | `src/services/pythonPackages.ts` / `src/workers/pythonWorker.ts` | `:67-98`, `:294-336` | [X] |
+| 8 | **ALTO** | Perda de Entrada em Digitação Rápida ou Paste Multilinha (SAB/Atomics) | `src/services/vmManager.ts` / `src/services/runtimes/pythonRuntime.ts` | `:160-173`, `:312-320` | [X] |
+| 9 | **ALTO** | Escopo Reduzido em `getFilesInProjectScope` Quebra Módulos e Includes | `src/context/EditorContext.tsx` | `:1163-1181`, `:1224-1246` | [X] |
+| 10 | **ALTO** | Bloqueio Total da Aplicação (App Brick/DoS) em Falha do Clang | `src/App.tsx` / `src/context/EditorContext.tsx` | `:86-95`, `:1135-1140` | [X] |
+| 11 | **ALTO** | Auto-Sync Sobrescreve Edições Ativas do Usuário em Arquivos Externos | `src/context/EditorContext.tsx` | `:758-787` | [X] |
+| 12 | **ALTO** | Gravações Fire-and-Forget Limpam `isDirty` Mesmo em Falha | `src/context/EditorContext.tsx` / `src/services/localFs.ts` | `:943-963`, `:190-214` | [X] |
+| 13 | **ALTO** | `moveFileItem` usa `move()` de 1 Argumento e Viola Unique Index no IDB | `src/context/EditorContext.tsx` / `src/services/localFs.ts` / `storage.ts` | `:1407-1456`, `:291-344`, `:92` | [X] |
+| 14 | **ALTO** | Encerramento Prematuro de Código Assíncrono no Worker JS/TS | `src/workers/jsWorker.ts` / `src/services/runtimes/jsRuntime.ts` | `:106-112`, `:264-274` | [X] |
+| 15 | **ALTO** | Auto-Sync Remove Arquivos Dirty e Trata Scan Parcial como Exclusão | `src/context/EditorContext.tsx` / `src/services/localFs.ts` | `:746-756`, `:357-409` | [X] |
+| 16 | **ALTO** | `openDB` sem Handlers `blocked`/`blocking`/`terminated` Trava Workspace | `src/services/storage.ts` | `:85-110`, `:112-125` | [X] |
+| 17 | **ALTO** | Poluição Persistente de `sys.modules` no Python Impede Atualizações | `src/workers/pythonWorker.ts` | `:227-263` | [X] |
+| 18 | **ALTO** | Download de ZIP do Workspace Trunca Todos os Binários para 0 Bytes | `src/context/EditorContext.tsx` | `:611-632` | [X] |
+| 19 | **ALTO** | Duplicação de Cache e Estouro de Quota de Armazenamento no PWA | `src/sw.ts` / `vite.config.ts` | `:35, :72-130`, `:94-99` | [X] |
+| 20 | **ALTO** | Memory Leak Progressivo no Monaco por Acúmulo de `addExtraLib` | `src/services/monaco/tsLanguageService.ts` | `:56-70` | [X] |
+| 21 | **MÉDIO** | Cache de Compilação C/C++ Ilimitado com Risco de OOM na Aba | `src/services/cCompiler.ts` | `:227-250`, `:329-332` | [X] |
+| 22 | **MÉDIO** | `pythonRuntime.pending` sem Timeout e sem Rejeição em Erro do Worker | `src/services/runtimes/pythonRuntime.ts` | `:42`, `:77-88`, `:360-401` | [X] |
+| 23 | **MÉDIO** | Análise Semântica de C/C++ Síncrona na Thread de UI no Monaco | `src/services/monaco/cLanguageService.ts` | `:325-327`, `:860`, `:1076` | [X] |
+| 24 | **MÉDIO** | Fechamento de Aba ou Navegação sem Confirmação de Conteúdo Dirty | `src/context/EditorContext.tsx` | `:873-891` | [X] |
+| 25 | **MÉDIO** | Identidade de Workspace Local Baseada Exclusivamente no Nome da Pasta | `src/context/EditorContext.tsx` | `:319-320`, `:391-398`, `:805` | [X] |
+| 26 | **BAIXO** | Efeitos Colaterais Impuros dentro de Updaters React `setFiles` | `src/context/EditorContext.tsx` | `:943-957`, `:1260-1343` | [X] |
+| 27 | **BAIXO** | Mascaramento Indevido de Alterações por `recordInternalWrite` Prévio | `src/services/localFs.ts` | `:198`, `:213` | [X] |
+| 28 | **BAIXO** | Ausência de Sanitização de Caracteres Especiais em `createNewFile` | `src/context/EditorContext.tsx` / `Sidebar.tsx` | `:968-1050`, `:160-166` | [X] |
+| 29 | **BAIXO** | Truncamento Rígido de Entradas no Terminal a 65.520 Bytes | `src/workers/wasmWorker.ts` / `src/workers/jsWorker.ts` | `:126-137`, `:165-171` | [X] |
 
 ---
 

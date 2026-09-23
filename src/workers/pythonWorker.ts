@@ -256,8 +256,13 @@ import os
 import runpy
 import sys
 
+to_remove = [k for k, v in list(sys.modules.items()) if getattr(v, '__file__', '') and str(getattr(v, '__file__', '')).startswith('/workspace')]
+for k in to_remove:
+    sys.modules.pop(k, None)
+
 sys.argv = list(__theprog_argv__)
-sys.path.insert(0, '/workspace')
+if '/workspace' not in sys.path:
+    sys.path.insert(0, '/workspace')
 os.chdir('/workspace')
 runpy.run_path(__theprog_entry__, run_name='__main__')
 `);

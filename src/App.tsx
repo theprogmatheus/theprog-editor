@@ -10,7 +10,6 @@ import { TerminalPanel } from './components/layout/TerminalPanel';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { HelpModal } from './components/modals/HelpModal';
 import { WelcomeScreen } from './components/screens/WelcomeScreen';
-import { LinuxLoadingScreen } from './components/common/LinuxLoadingScreen';
 import { GlobalContextMenu } from './components/common/GlobalContextMenu';
 
 const MainLayout: React.FC = () => {
@@ -68,10 +67,6 @@ const MainLayout: React.FC = () => {
 
 const MainApp: React.FC = () => {
   const {
-    isSystemReady,
-    systemProgressPercent,
-    systemStatusMessage,
-    systemStatus,
     currentScreen,
     recentWorkspaces,
     openLocalFolder,
@@ -82,19 +77,6 @@ const MainApp: React.FC = () => {
     hasEnteredEditorSession,
   } = useEditor();
 
-  // 1. Carrega os ambientes de execução (Clang, Python e JS/TS) upfront antes mesmo de escolher o workspace
-  if (!isSystemReady) {
-    return (
-      <LinuxLoadingScreen
-        isLoading={!isSystemReady}
-        progressPercent={systemProgressPercent}
-        statusMessage={systemStatusMessage}
-        isError={systemStatus === 'error'}
-      />
-    );
-  }
-
-  // 2. Com o sistema pronto, apresenta a seleção limpa de diretório/sandbox
   if (currentScreen === 'welcome') {
     return (
       <WelcomeScreen
@@ -109,7 +91,6 @@ const MainApp: React.FC = () => {
     );
   }
 
-  // 3. Ao escolher a pasta, abre o editor instantaneamente sem nenhum loading adicional
   return <MainLayout />;
 };
 

@@ -20,6 +20,7 @@ interface PendingRequest {
 }
 
 interface ActiveRun {
+  runId: string;
   io: RuntimeIO;
   resolve: (code: number) => void;
   control: Int32Array;
@@ -77,6 +78,10 @@ class PythonRuntime implements RuntimeAdapter {
       this.worker.onerror = (err) => {
         const message = err?.message || 'Falha no worker Python';
         this.updateProgress({ status: 'error', error: message });
+        for (const [, req] of this.pending.entries()) {
+          req.reject(new Error(`Falha no worker Python: ${message}`));
+        }
+        this.pending.clear();
         if (this.activeRun) {
           this.activeRun.io.onEnvironmentOutput(
             `\r\n\x1b[31m[Erro no ambiente Python: ${message}]\x1b[0m\r\n`
@@ -99,6 +104,10 @@ class PythonRuntime implements RuntimeAdapter {
       }
       this.worker = null;
     }
+    for (const [, req] of this.pending.entries()) {
+      req.reject(new Error('Worker Python foi destruído ou reiniciado'));
+    }
+    this.pending.clear();
     this.preloadPromise = null;
     this.updateProgress({ ...UNLOADED_PROGRESS });
   }
@@ -166,7 +175,7 @@ class PythonRuntime implements RuntimeAdapter {
 
       case 'exit': {
         const run = this.activeRun;
-        if (run) {
+        if (run && (!message.id || run.runId === message.id)) {
           this.activeRun = null;
           run.resolve(typeof message.code === 'number' ? message.code : 0);
         }
@@ -175,7 +184,7 @@ class PythonRuntime implements RuntimeAdapter {
 
       case 'error': {
         const run = this.activeRun;
-        if (run) {
+        if (run && (!message.id || run.runId === message.id)) {
           this.activeRun = null;
           run.io.onEnvironmentOutput(
             `\r\n\x1b[31m[Erro no ambiente Python: ${message.error}]\x1b[0m\r\n`
@@ -290,6 +299,13 @@ class PythonRuntime implements RuntimeAdapter {
     io.onEnvironmentOutput(`\x1b[90m$ python ${plan.entryFile}\x1b[0m\r\n`);
     io.onPhaseChange('execution');
 
+    if (typeof SharedArrayBuffer === 'undefined') {
+      io.onEnvironmentOutput(
+        '\r\n\x1b[31m[Erro: SharedArrayBuffer não está disponível no navegador. Verifique os headers COOP/COEP.]\x1b[0m\r\n'
+      );
+      return 1;
+    }
+
     const worker = this.getWorker();
     const sabControl = new SharedArrayBuffer(65536);
     const control = new Int32Array(sabControl, 0, 2);
@@ -306,7 +322,7 @@ class PythonRuntime implements RuntimeAdapter {
     const runId = `py-run-${++requestCounter}`;
 
     return new Promise<number>((resolve) => {
-      this.activeRun = { io, resolve, control, data, interrupt, terminated: false };
+      this.activeRun = { runId, io, resolve, control, data, interrupt, terminated: false };
 
       io.onControllerReady({
         sendStdin: (line: string) => {

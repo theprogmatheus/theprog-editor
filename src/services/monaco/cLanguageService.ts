@@ -115,6 +115,22 @@ export function isCppMode(model: Monaco.editor.ITextModel): boolean {
   return false;
 }
 
+const symbolCache = new WeakMap<
+  Monaco.editor.ITextModel,
+  { versionId: number; symbols: ReturnType<typeof analyzeCSymbols> }
+>();
+
+function getCachedCSymbols(model: Monaco.editor.ITextModel): ReturnType<typeof analyzeCSymbols> {
+  const versionId = model.getVersionId();
+  const cached = symbolCache.get(model);
+  if (cached && cached.versionId === versionId) {
+    return cached.symbols;
+  }
+  const symbols = analyzeCSymbols(model.getValue());
+  symbolCache.set(model, { versionId, symbols });
+  return symbols;
+}
+
 /**
  * Tenta obter o conteúdo de um arquivo de cabeçalho consultando primeiro
  * os arquivos do Workspace e, em seguida, os modelos abertos no Monaco Editor.
@@ -323,7 +339,7 @@ export function registerCLanguageService(monaco: typeof Monaco): void {
         }
 
         const sourceCode = model.getValue();
-        const symbols = analyzeCSymbols(sourceCode);
+        const symbols = getCachedCSymbols(model);
         const resolvedIncludes = resolveIncludedSymbols(sourceCode, (name) => getHeaderContent(name, monaco));
 
         // D. Autocomplete Especial C++ após 'std::'
@@ -857,7 +873,7 @@ export function registerCLanguageService(monaco: typeof Monaco): void {
         const symbolName = word.word;
         const isCpp = isCppMode(model);
         const sourceCode = model.getValue();
-        const symbols = analyzeCSymbols(sourceCode);
+        const symbols = getCachedCSymbols(model);
         const resolvedIncludes = resolveIncludedSymbols(sourceCode, (name) => getHeaderContent(name, monaco));
         const inScope = getSymbolsInScope(symbols, position.lineNumber);
 
@@ -1073,7 +1089,7 @@ export function registerCLanguageService(monaco: typeof Monaco): void {
         const { functionName, activeParameter } = callInfo;
         const isCpp = isCppMode(model);
         const sourceCode = model.getValue();
-        const symbols = analyzeCSymbols(sourceCode);
+        const symbols = getCachedCSymbols(model);
         const resolvedIncludes = resolveIncludedSymbols(sourceCode, (name) => getHeaderContent(name, monaco));
 
         // 1. Procura entre as funções do próprio arquivo

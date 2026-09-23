@@ -19,6 +19,7 @@ import {
 import {
   pickDirectory,
   readDirectoryTree,
+  readFileFromDisk,
   saveFileToDisk,
   createFileOnDisk,
   createFolderOnDisk,
@@ -40,6 +41,8 @@ import type { RunPlan } from '../services/languages/types';
 import { getRunCapability } from '../services/languages/runCapability';
 import {
   detectLanguage,
+  detectFileKindByExtension,
+  detectFileKindFromBytes,
   getRuntimeForLanguage,
   isLikelyBinaryByName,
   isTextFileKind,
@@ -48,6 +51,24 @@ import { loadPythonWheels, savePythonWheel } from '../services/pythonPackages';
 
 export type SystemStatus = 'loading' | 'ready' | 'running' | 'error';
 export type AppScreen = 'welcome' | 'editor';
+
+function isInvalidFileName(name: string): boolean {
+  const trimmed = name.trim();
+  if (
+    !trimmed ||
+    trimmed === '.' ||
+    trimmed === '..' ||
+    trimmed.includes('/') ||
+    trimmed.includes('\\') ||
+    /[<>:"|?*]/.test(trimmed)
+  ) {
+    return true;
+  }
+  for (let i = 0; i < trimmed.length; i++) {
+    if (trimmed.charCodeAt(i) < 32) return true;
+  }
+  return false;
+}
 
 interface EditorContextType {
   files: FileItem[];
@@ -124,6 +145,10 @@ const EditorContext = createContext<EditorContextType | undefined>(undefined);
 
 export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [files, setFiles] = useState<FileItem[]>([]);
+  const filesRef = useRef(files);
+  useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [tabs, setTabs] = useState<EditorTab[]>([]);
   const [vmStatus, setVmStatus] = useState<VMStatus>('idle');
@@ -611,12 +636,19 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const downloadWorkspaceZip = useCallback(async () => {
     try {
       const zip = new JSZip();
-      files.forEach((f) => {
+      for (const f of files) {
         if (!f.isFolder) {
           const cleanPath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
-          zip.file(cleanPath, f.content || '');
+          if (f.content !== undefined) {
+            zip.file(cleanPath, f.content);
+          } else if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
+            const raw = await readFileFromDisk(activeWorkspace.handle, f.path);
+            if (raw) {
+              zip.file(cleanPath, raw);
+            }
+          }
         }
-      });
+      }
       const blob = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -629,7 +661,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } catch (err) {
       console.error('Erro ao gerar ZIP:', err);
     }
-  }, [files, activeWorkspace.name]);
+  }, [files, activeWorkspace]);
 
   // Inicialização da aplicação: gerencia workspaces recentes, decisão de tela e pré-carrega o sistema
   useEffect(() => {
@@ -695,6 +727,9 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const performSync = async () => {
       try {
         const snapshot = await scanDirectorySnapshot(dirHandle);
+        if (!snapshot) {
+          return;
+        }
 
         setFiles((prevFiles) => {
           let hasModifications = false;
@@ -714,6 +749,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               const name = parts[parts.length - 1];
               const parentPath = parts.length > 1 ? '/' + parts.slice(0, -1).join('/') : null;
               const parent = parentPath ? prevFiles.find((f) => f.path === parentPath) : null;
+              const extKind = detectFileKindByExtension(name);
+              const fileKind = meta.isFolder
+                ? undefined
+                : meta.size > 5 * 1024 * 1024
+                ? 'too_large'
+                : extKind ?? undefined;
 
               const newItem: FileItem = {
                 id: 'local-' + snapPath.replace(/[^a-zA-Z0-9_-]/g, '_'),
@@ -723,6 +764,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 parentId: parent ? parent.id : null,
                 language: detectLanguage(name),
                 updatedAt: meta.lastModified || Date.now(),
+                kind: fileKind,
+                size: meta.size,
                 content: meta.isFolder ? undefined : '',
               };
               updated.push(newItem);
@@ -743,11 +786,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
           }
 
-          // 2. Detectar arquivos ou pastas removidas pelo SO
+          // 2. Detectar arquivos ou pastas removidas pelo SO (preserva arquivos com alterações não salvas)
           const snapshotPaths = new Set(snapshot.keys());
           const finalFiles: FileItem[] = [];
           for (const f of updated) {
-            if (snapshotPaths.has(f.path) || isRecentInternalWrite(f.path)) {
+            const isDirty = tabs.some((t) => (t.fileId === f.id || t.filePath === f.path) && t.isDirty);
+            if (snapshotPaths.has(f.path) || isRecentInternalWrite(f.path) || isDirty) {
               finalFiles.push(f);
             } else {
               hasModifications = true;
@@ -872,8 +916,14 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const closeTab = useCallback(
     (fileId: string) => {
+      const targetTab = tabs.find((t) => t.fileId === fileId);
+      if (targetTab?.isDirty) {
+        const confirmed = window.confirm(
+          `O arquivo "${targetTab.title}" possui alterações não salvas. Deseja fechar sem salvar?`
+        );
+        if (!confirmed) return;
+      }
       setTabs((prevTabs) => {
-        const targetTab = prevTabs.find((t) => t.fileId === fileId);
         const nextTabs = prevTabs.filter(
           (t) => t.fileId !== fileId && (!targetTab || t.filePath !== targetTab.filePath)
         );
@@ -887,8 +937,23 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return nextTabs;
       });
     },
-    [activeFileId, activeFile]
+    [tabs, activeFileId, activeFile]
   );
+
+  useEffect(() => {
+    const hasDirtyTabs = tabs.some((t) => t.isDirty);
+    if (!hasDirtyTabs) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [tabs]);
 
   const saveActiveFile = useCallback(async () => {
     if (!activeFile || activeFile.isFolder) return;
@@ -901,22 +966,30 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const contentToSave = activeFile.content || '';
-    if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
-      await saveFileToDisk(activeWorkspace.handle, activeFile.path, contentToSave).catch((err) => {
-        console.error('Erro ao salvar no disco:', err);
-      });
-    } else {
-      await saveFileToStorage(activeFile);
+    let saveOk = false;
+    try {
+      if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
+        await saveFileToDisk(activeWorkspace.handle, activeFile.path, contentToSave);
+      } else {
+        await saveFileToStorage(activeFile);
+      }
+      saveOk = true;
+    } catch (err) {
+      console.error('Erro ao salvar no disco:', err);
     }
-    vmManager.syncFile(activeFile.name, contentToSave);
 
-    setTabs((prev) =>
-      prev.map((t) => (t.fileId === fileId ? { ...t, isDirty: false } : t))
-    );
+    if (saveOk) {
+      vmManager.syncFile(activeFile.name, contentToSave);
+      setTabs((prev) =>
+        prev.map((t) => (t.fileId === fileId ? { ...t, isDirty: false } : t))
+      );
+    }
   }, [activeFile, activeWorkspace]);
 
   const updateFileContent = useCallback((fileId: string, content: string) => {
-    if (!isTextFileKind(files.find((f) => f.id === fileId)?.kind)) return;
+    const target = filesRef.current.find((f) => f.id === fileId);
+    if (!isTextFileKind(target?.kind)) return;
+
     setFiles((prev) =>
       prev.map((f) => {
         if (f.id === fileId) {
@@ -941,33 +1014,39 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     const timer = setTimeout(async () => {
-      setFiles((currentFiles) => {
-        const fileToSave = currentFiles.find((f) => f.id === fileId);
-        if (fileToSave) {
-          if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
-            saveFileToDisk(activeWorkspace.handle, fileToSave.path, content).catch((err) => {
-              console.error('Erro ao salvar no disco:', err);
-            });
-          } else {
-            saveFileToStorage(fileToSave);
-          }
-          vmManager.syncFile(fileToSave.name, content);
-        }
-        return currentFiles;
-      });
-
-      setTabs((prev) =>
-        prev.map((t) => (t.fileId === fileId ? { ...t, isDirty: false } : t))
-      );
       saveTimeouts.current.delete(fileId);
+      const fileToSave = filesRef.current.find((f) => f.id === fileId);
+      if (!fileToSave) return;
+
+      let saveOk = false;
+      try {
+        if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
+          await saveFileToDisk(activeWorkspace.handle, fileToSave.path, content);
+        } else {
+          await saveFileToStorage({ ...fileToSave, content, updatedAt: Date.now() });
+        }
+        saveOk = true;
+      } catch (err) {
+        console.error('Erro no salvamento automático:', err);
+      }
+
+      if (saveOk) {
+        vmManager.syncFile(fileToSave.name, content);
+        setTabs((prev) =>
+          prev.map((t) => (t.fileId === fileId ? { ...t, isDirty: false } : t))
+        );
+      }
     }, autoSaveDelay);
 
     saveTimeouts.current.set(fileId, timer);
-  }, [files, activeWorkspace, autoSave, autoSaveDelay]);
+  }, [activeWorkspace, autoSave, autoSaveDelay]);
 
   const createNewFile = useCallback(
     async (name: string, isFolder: boolean = false, parentId: string | null = null): Promise<string> => {
       const cleanName = name.trim();
+      if (isInvalidFileName(cleanName)) {
+        throw new Error('Nome de arquivo inválido. Evite caracteres especiais (/ \\ : * ? " < > |) e caminhos relativos.');
+      }
       const language = detectLanguage(cleanName);
 
       let filePath = '/' + cleanName;
@@ -1085,6 +1164,9 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const renameFile = useCallback(
     async (fileId: string, newName: string) => {
       const cleanName = newName.trim();
+      if (isInvalidFileName(cleanName)) {
+        throw new Error('Nome de arquivo inválido. Evite caracteres especiais (/ \\ : * ? " < > |) e caminhos relativos.');
+      }
       const language = detectLanguage(cleanName);
 
       const target = files.find((f) => f.id === fileId);
@@ -1123,7 +1205,15 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
 
       setTabs((prev) =>
-        prev.map((t) => (t.fileId === fileId ? { ...t, title: cleanName, language } : t))
+        prev.map((t) => {
+          if (t.fileId === fileId) {
+            return { ...t, title: cleanName, language, filePath: newPath };
+          }
+          if (t.filePath.startsWith(oldPath + '/')) {
+            return { ...t, filePath: newPath + t.filePath.slice(oldPath.length) };
+          }
+          return t;
+        })
       );
     },
     [files, activeWorkspace]
@@ -1160,24 +1250,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ? `Preparando ambientes (${runtimeAggregate.percent}%)...`
       : 'Inicializando ambientes...';
 
-  function getFilesInProjectScope(filesList: FileItem[], activeItem: FileItem): FileItem[] {
-    if (!activeItem.parentId) {
-      return filesList.filter((f) => !f.isFolder && f.parentId === null);
-    }
-
-    const folderIds = new Set<string>([activeItem.parentId]);
-    let added = true;
-    while (added) {
-      added = false;
-      for (const f of filesList) {
-        if (f.isFolder && f.parentId && folderIds.has(f.parentId) && !folderIds.has(f.id)) {
-          folderIds.add(f.id);
-          added = true;
-        }
-      }
-    }
-
-    return filesList.filter((f) => !f.isFolder && f.parentId !== null && folderIds.has(f.parentId));
+  function getFilesInProjectScope(filesList: FileItem[], _activeItem: FileItem): FileItem[] {
+    return filesList.filter((f) => !f.isFolder);
   }
 
   const runActiveFile = useCallback(
@@ -1222,17 +1296,12 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setTabs((prev) => prev.map((t) => (t.fileId === activeFile.id ? { ...t, isDirty: false } : t)));
 
       const scopedFiles = getFilesInProjectScope(files, activeFile);
-      const parentFolder = activeFile.parentId ? files.find((f) => f.id === activeFile.parentId) : null;
-      const baseDirPath = parentFolder ? parentFolder.path : '';
-
       const folderFiles = new Map<string, string>();
       let entryRelPath = activeFile.name;
 
       for (const f of scopedFiles) {
         const content = f.id === activeFile.id ? codeToRun : (f.content || '');
-        const relPath = baseDirPath && f.path.startsWith(baseDirPath + '/')
-          ? f.path.slice(baseDirPath.length + 1)
-          : (f.path.startsWith('/') ? f.path.slice(1) : f.name);
+        const relPath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
 
         if (f.id === activeFile.id) {
           entryRelPath = relPath;
@@ -1249,7 +1318,7 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const runWorkspaceKey =
         activeWorkspace.type === 'local' ? `local_${activeWorkspace.name}` : 'sandbox';
 
-      // Sincronização bidirecional do sistema de arquivos após execução WASI
+      // Sincronização bidirecional do sistema de arquivos após execução
       const handleFilesUpdated = (syncedFiles: { path: string; data: Uint8Array; isNew?: boolean }[]) => {
         if (activeWorkspaceKeyRef.current !== runWorkspaceKey) {
           return;
@@ -1259,11 +1328,13 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         setFiles((prevFiles) => {
           const updatedFiles = [...prevFiles];
-          const filesToPersist: FileItem[] = [];
+          const filesToPersist: { item: FileItem; rawData: Uint8Array | string }[] = [];
 
           for (const synced of syncedFiles) {
-            const decodedContent = decoder.decode(synced.data);
-            const targetFullPath = baseDirPath ? `${baseDirPath}/${synced.path}` : `/${synced.path}`;
+            const kind = detectFileKindByExtension(synced.path) ?? detectFileKindFromBytes(synced.data);
+            const isText = isTextFileKind(kind);
+            const decodedContent = isText ? decoder.decode(synced.data) : undefined;
+            const targetFullPath = synced.path.startsWith('/') ? synced.path : `/${synced.path}`;
 
             const existingIndex = updatedFiles.findIndex((f) => !f.isFolder && f.path === targetFullPath);
 
@@ -1272,14 +1343,19 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               const modifiedFile: FileItem = {
                 ...existingFile,
                 content: decodedContent,
+                kind,
+                size: synced.data.byteLength,
                 updatedAt: Date.now(),
               };
               updatedFiles[existingIndex] = modifiedFile;
-              filesToPersist.push(modifiedFile);
+              filesToPersist.push({
+                item: modifiedFile,
+                rawData: isText ? (decodedContent || '') : synced.data,
+              });
             } else {
               const parts = synced.path.split('/').filter(Boolean);
-              let currentParentId: string | null = activeFile.parentId;
-              let currentPathAcc = baseDirPath;
+              let currentParentId: string | null = null;
+              let currentPathAcc = '';
 
               for (let i = 0; i < parts.length - 1; i++) {
                 const dirName = parts[i];
@@ -1301,7 +1377,6 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     updatedAt: Date.now(),
                   };
                   updatedFiles.push(dirItem);
-                  filesToPersist.push(dirItem);
                 }
                 currentParentId = dirItem.id;
                 currentPathAcc = dirFullPath;
@@ -1320,22 +1395,27 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 isFolder: false,
                 parentId: currentParentId,
                 language: detectLanguage(fileName),
+                kind,
+                size: synced.data.byteLength,
                 updatedAt: Date.now(),
                 content: decodedContent,
               };
 
               updatedFiles.push(newFileItem);
-              filesToPersist.push(newFileItem);
+              filesToPersist.push({
+                item: newFileItem,
+                rawData: isText ? (decodedContent || '') : synced.data,
+              });
             }
           }
 
           setTimeout(() => {
             if (activeWorkspace.type === 'local' && activeWorkspace.handle) {
-              filesToPersist.forEach((f) => {
-                saveFileToDisk(activeWorkspace.handle!, f.path, f.content || '').catch(console.error);
+              filesToPersist.forEach(({ item, rawData }) => {
+                saveFileToDisk(activeWorkspace.handle!, item.path, rawData).catch(console.error);
               });
             } else {
-              filesToPersist.forEach((f) => saveFileToStorage(f));
+              filesToPersist.forEach(({ item }) => saveFileToStorage(item));
             }
           }, 0);
 

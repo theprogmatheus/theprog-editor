@@ -116,11 +116,11 @@ registerRoute(
   })
 );
 
-// Cache com prioridade para scripts e estilos (inclui módulos .mjs dos runtimes)
+// Cache com prioridade para scripts e módulos dos runtimes (ex: Pyodide .mjs/.js)
 registerRoute(
-  /.*\.(?:js|mjs|css)$/,
+  ({ url }) => url.pathname.includes('/runtimes/') && /\.(?:js|mjs|css)$/.test(url.pathname),
   new CacheFirst({
-    cacheName: 'static-scripts-styles-cache',
+    cacheName: 'runtime-scripts-cache',
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       coopCoepPlugin,

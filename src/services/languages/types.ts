@@ -8,7 +8,7 @@ export type LanguageId =
   | 'markdown'
   | 'plaintext';
 
-export type FileKind = 'text' | 'binary' | 'image';
+export type FileKind = 'text' | 'binary' | 'image' | 'too_large';
 
 export type RuntimeId = 'clang' | 'python' | 'js';
 

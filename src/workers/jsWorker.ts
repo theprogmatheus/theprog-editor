@@ -219,7 +219,18 @@ self.onmessage = (event: MessageEvent) => {
   installGlobals(message.entry, message.argv || []);
 
   try {
-    (0, eval)(message.code);
+    const result = (0, eval)(message.code);
+    if (result && typeof result.then === 'function') {
+      result
+        .then(() => {
+          scheduleFinishCheck();
+        })
+        .catch((err: any) => {
+          reportError(err);
+          finish(1);
+        });
+      return;
+    }
   } catch (err) {
     reportError(err);
     finish(1);

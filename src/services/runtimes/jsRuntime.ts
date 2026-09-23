@@ -196,6 +196,13 @@ class JsRuntime implements RuntimeAdapter {
 
     io.onPhaseChange('execution');
 
+    if (typeof SharedArrayBuffer === 'undefined') {
+      io.onEnvironmentOutput(
+        '\r\n\x1b[31m[Erro: SharedArrayBuffer não está disponível no navegador. Verifique os headers COOP/COEP.]\x1b[0m\r\n'
+      );
+      return 1;
+    }
+
     const worker = new Worker(new URL('../../workers/jsWorker.ts', import.meta.url), {
       type: 'module',
     });

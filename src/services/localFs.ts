@@ -155,8 +155,8 @@ export async function readDirectoryTree(
               content = undefined;
             }
           } else {
-            content =
-              kind === 'text' ? '/* Arquivo muito grande para exibição inline (> 5MB) */' : undefined;
+            kind = extensionKind === 'image' ? 'image' : extensionKind === 'binary' ? 'binary' : 'too_large';
+            content = undefined;
           }
         } catch (readErr) {
           console.warn(`Erro ao ler arquivo ${entry.name}:`, readErr);
@@ -194,8 +194,6 @@ export async function saveFileToDisk(
 ): Promise<void> {
   const cleanPath = relPath.replace(/^\.?\//, '').trim();
   if (!cleanPath) return;
-
-  recordInternalWrite(cleanPath);
 
   const parts = cleanPath.split('/').filter(Boolean);
   let currentDir = rootHandle;
@@ -306,15 +304,25 @@ export async function renameOnDisk(
     oldParentDir = await oldParentDir.getDirectoryHandle(oldParts[i], { create: false });
   }
 
+  let newParentDir = rootHandle;
+  for (let i = 0; i < newParts.length - 1; i++) {
+    newParentDir = await newParentDir.getDirectoryHandle(newParts[i], { create: true });
+  }
+
   const oldName = oldParts[oldParts.length - 1];
   const newName = newParts[newParts.length - 1];
+  const isCrossDir = oldParts.slice(0, -1).join('/') !== newParts.slice(0, -1).join('/');
 
   try {
     if (!isFolder) {
       const oldFileHandle = await oldParentDir.getFileHandle(oldName);
       // Chromium 111+ suporta move()
       if ('move' in oldFileHandle && typeof (oldFileHandle as any).move === 'function') {
-        await (oldFileHandle as any).move(newName);
+        if (isCrossDir) {
+          await (oldFileHandle as any).move(newParentDir, newName);
+        } else {
+          await (oldFileHandle as any).move(newName);
+        }
         recordInternalWrite(cleanOld);
         recordInternalWrite(cleanNew);
         return;
@@ -330,7 +338,11 @@ export async function renameOnDisk(
     } else {
       const oldDirHandle = await oldParentDir.getDirectoryHandle(oldName);
       if ('move' in oldDirHandle && typeof (oldDirHandle as any).move === 'function') {
-        await (oldDirHandle as any).move(newName);
+        if (isCrossDir) {
+          await (oldDirHandle as any).move(newParentDir, newName);
+        } else {
+          await (oldDirHandle as any).move(newName);
+        }
         recordInternalWrite(cleanOld);
         recordInternalWrite(cleanNew);
         return;
@@ -353,12 +365,14 @@ export interface FileMetadataSnapshot {
 /**
  * Escaneia apenas os metadados da árvore de arquivos (nomes, tipos, timestamps)
  * de forma ultra-rápida sem carregar o conteúdo dos arquivos na memória.
+ * Retorna null se a leitura do diretório raiz falhar, evitando que o sync apague
+ * os arquivos em memória por engano.
  */
 export async function scanDirectorySnapshot(
   dirHandle: FileSystemDirectoryHandle,
   basePath = '',
   maxDepth = 8
-): Promise<Map<string, FileMetadataSnapshot>> {
+): Promise<Map<string, FileMetadataSnapshot> | null> {
   if (maxDepth <= 0) return new Map();
 
   const map = new Map<string, FileMetadataSnapshot>();
@@ -385,7 +399,9 @@ export async function scanDirectorySnapshot(
           itemPath,
           maxDepth - 1
         );
-        subMap.forEach((val, key) => map.set(key, val));
+        if (subMap) {
+          subMap.forEach((val, key) => map.set(key, val));
+        }
       } else if (entry.kind === 'file') {
         const fileHandle = entry as FileSystemFileHandle;
         try {
@@ -403,6 +419,9 @@ export async function scanDirectorySnapshot(
     }
   } catch (err) {
     console.warn('Erro ao escanear snapshot de diretório:', err);
+    if (!basePath) {
+      return null;
+    }
   }
 
   return map;

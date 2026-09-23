@@ -223,8 +223,22 @@ export function preloadCompiler(): Promise<void> {
   return preloadPromise;
 }
 
-// Cache em memória de binários compilados (Zero-Delay Re-run)
+// Cache em memória de binários compilados (Zero-Delay Re-run com limite LRU de 5 entradas)
+const MAX_COMPILATION_CACHE_ENTRIES = 5;
 const compilationCache = new Map<string, { wasmBinary: Uint8Array; timestamp: number }>();
+
+function addToCompilationCache(key: string, wasmBinary: Uint8Array): void {
+  if (compilationCache.size >= MAX_COMPILATION_CACHE_ENTRIES) {
+    const oldestKey = compilationCache.keys().next().value;
+    if (oldestKey) {
+      compilationCache.delete(oldestKey);
+    }
+  }
+  compilationCache.set(key, {
+    wasmBinary: wasmBinary.slice(),
+    timestamp: Date.now(),
+  });
+}
 
 function computeCompilationHash(
   sources: string[],
@@ -326,10 +340,7 @@ export async function compileC(
     pendingCompileResolve = (wasmBinary) => {
       if (wasmBinary) {
         // Armazena no cache para execuções subsequentes imediatas
-        compilationCache.set(cacheKey, {
-          wasmBinary: wasmBinary.slice(),
-          timestamp: Date.now(),
-        });
+        addToCompilationCache(cacheKey, wasmBinary);
         resolve({ wasmBinary, wasCached: false });
       } else {
         resolve({ wasmBinary: null, wasCached: false });
@@ -388,13 +399,16 @@ export async function executeWasmBinary(
       data = new Uint8Array(sab, 8);
     }
 
-    const cleanup = () => {
+    const cleanup = (code?: number) => {
       if (!isFinished) {
         isFinished = true;
         try {
           worker.terminate();
         } catch {
           // ignore
+        }
+        if (code !== undefined) {
+          resolve(code);
         }
       }
     };
@@ -416,7 +430,7 @@ export async function executeWasmBinary(
           Atomics.store(control, 0, -1); // -1 = ABORT
           Atomics.notify(control, 0);
         }
-        cleanup();
+        cleanup(130);
       },
     };
 
@@ -437,15 +451,13 @@ export async function executeWasmBinary(
         resolve(typeof msg.code === 'number' ? msg.code : 0);
       } else if (msg.type === 'error') {
         onOutput(`\r\n\x1b[31mErro de execução: ${msg.error}\x1b[0m\r\n`);
-        cleanup();
-        resolve(1);
+        cleanup(1);
       }
     };
 
     worker.onerror = (err) => {
       onOutput(`\r\n\x1b[31mErro no worker: ${err?.message || 'Falha na execução'}\x1b[0m\r\n`);
-      cleanup();
-      resolve(1);
+      cleanup(1);
     };
 
     worker.postMessage({ wasmBinary, sab, binaryName, initialFiles: vfsFiles || [] });
