@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import type { FileItem, UserSettings, RecentWorkspace } from '../types/editor';
 
 const DB_NAME = 'theprog-editor-db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -13,6 +13,7 @@ export const defaultSettings: UserSettings = {
   theme: 'dark',
   autoSave: true,
   autoSaveDelay: 1500,
+  enableGitExperimental: false,
 };
 
 export const defaultFiles: FileItem[] = [
@@ -102,6 +103,9 @@ export async function getDb(): Promise<IDBPDatabase> {
         }
         if (!db.objectStoreNames.contains('runtime_assets')) {
           db.createObjectStore('runtime_assets');
+        }
+        if (!db.objectStoreNames.contains('git_fs')) {
+          db.createObjectStore('git_fs');
         }
       },
       blocked() {
@@ -262,3 +266,37 @@ export async function getRuntimeAssetKeys(prefix: string): Promise<string[]> {
   const keys = await db.getAllKeys('runtime_assets');
   return keys.map((key) => String(key)).filter((key) => key.startsWith(prefix));
 }
+
+export async function getGitFsData(key: string): Promise<Uint8Array | undefined> {
+  const db = await getDb();
+  return (await db.get('git_fs', key)) as Uint8Array | undefined;
+}
+
+export async function setGitFsData(key: string, value: Uint8Array): Promise<void> {
+  const db = await getDb();
+  await db.put('git_fs', value, key);
+}
+
+export async function deleteGitFsData(key: string): Promise<void> {
+  const db = await getDb();
+  await db.delete('git_fs', key);
+}
+
+export async function getAllGitFsEntries(): Promise<Array<{ key: string; value: Uint8Array }>> {
+  const db = await getDb();
+  const keys = await db.getAllKeys('git_fs');
+  const entries: Array<{ key: string; value: Uint8Array }> = [];
+  for (const k of keys) {
+    const val = await db.get('git_fs', k);
+    if (val) {
+      entries.push({ key: String(k), value: val as Uint8Array });
+    }
+  }
+  return entries;
+}
+
+export async function clearGitFs(): Promise<void> {
+  const db = await getDb();
+  await db.clear('git_fs');
+}
+

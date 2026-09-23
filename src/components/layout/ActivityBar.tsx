@@ -11,7 +11,7 @@ interface ActivityBarProps {
 }
 
 export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, setActiveTab, onOpenHelp }) => {
-  const { isSidebarOpen, toggleSidebar, downloadWorkspaceZip, activeWorkspace } = useEditor();
+  const { isSidebarOpen, toggleSidebar, downloadWorkspaceZip, activeWorkspace, enableGitExperimental, gitStatusMap } = useEditor();
 
   const handleExplorerClick = () => {
     if (activeTab === 'explorer') {
@@ -35,6 +35,8 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, setActiveTa
     }
   };
 
+  const gitChangesCount = gitStatusMap ? gitStatusMap.size : 0;
+
   return (
     <aside className="w-12 flex flex-col justify-between items-center py-2 bg-[#f0f0f0] dark:bg-[#333333] border-r border-[#e5e5e5] dark:border-[#252526] select-none text-[#616161] dark:text-[#858585] transition-colors shrink-0 z-20">
       {/* Ícones superiores: Explorador e Git */}
@@ -51,17 +53,24 @@ export const ActivityBar: React.FC<ActivityBarProps> = ({ activeTab, setActiveTa
           <Files className="w-5 h-5" />
         </button>
 
-        <button
-          onClick={handleGitClick}
-          title="Controle de Versão Git Local (Clique para abrir/fechar)"
-          className={`w-10 h-10 flex items-center justify-center rounded cursor-pointer transition-colors relative ${
-            activeTab === 'git' && isSidebarOpen
-              ? 'text-black dark:text-white border-l-2 border-[#007acc] dark:border-white bg-black/5 dark:bg-white/5'
-              : 'hover:text-black dark:hover:text-white'
-          }`}
-        >
-          <GitBranch className="w-5 h-5" />
-        </button>
+        {enableGitExperimental && (
+          <button
+            onClick={handleGitClick}
+            title="Controle de Versão Git Local (Experimental)"
+            className={`w-10 h-10 flex items-center justify-center rounded cursor-pointer transition-colors relative ${
+              activeTab === 'git' && isSidebarOpen
+                ? 'text-black dark:text-white border-l-2 border-[#007acc] dark:border-white bg-black/5 dark:bg-white/5'
+                : 'hover:text-black dark:hover:text-white'
+            }`}
+          >
+            <GitBranch className="w-5 h-5" />
+            {gitChangesCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 bg-[#007acc] text-white text-[9px] font-bold rounded-full min-w-[15px] h-[15px] px-0.5 flex items-center justify-center leading-none">
+                {gitChangesCount > 99 ? '99+' : gitChangesCount}
+              </span>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Ícones inferiores: Baixar ZIP (apenas no Sandbox), Ajuda e Configurações */}

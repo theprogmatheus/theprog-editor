@@ -40,6 +40,9 @@ export interface EditorTab {
   language: SupportedLanguage;
   isDirty?: boolean;
   isPreview?: boolean;
+  isDiff?: boolean;
+  diffOriginalContent?: string;
+  diffModifiedContent?: string;
 }
 
 export type ThemeMode = 'dark' | 'light';
@@ -61,4 +64,30 @@ export interface UserSettings {
   autoSaveDelay: number;
   compactFolders?: boolean;
   previewMode?: boolean;
+  enableGitExperimental?: boolean;
+}
+
+export type GitStageStatus = 'staged' | 'unstaged' | 'untracked';
+
+export interface GitStatusEntry {
+  path: string;
+  status: 'modified' | 'added' | 'deleted' | 'unmodified';
+  stage: GitStageStatus;
+}
+
+export interface GitAuthor {
+  name: string;
+  email: string;
+}
+
+export interface GitCommitInfo {
+  oid: string;
+  message: string;
+  timestamp: number;
+  author: GitAuthor;
+}
+
+export interface GitBranchInfo {
+  name: string;
+  isCurrent: boolean;
 }

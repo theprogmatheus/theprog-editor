@@ -67,6 +67,8 @@ export const Sidebar: React.FC = () => {
     openWorkspacePicker,
     refreshCurrentWorkspace,
     compactFolders,
+    enableGitExperimental,
+    gitStatusMap,
   } = useEditor();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -933,7 +935,10 @@ export const Sidebar: React.FC = () => {
                   );
                 }
 
-                // Arquivo normal
+                const gitBadge = enableGitExperimental
+                  ? gitStatusMap?.get(item.path) || gitStatusMap?.get(item.path.replace(/^\//, ''))
+                  : undefined;
+
                 return (
                   <div
                     key={node.id}
@@ -993,6 +998,30 @@ export const Sidebar: React.FC = () => {
                         <span className="truncate">{renderHighlightedName(item.name, filterQuery)}</span>
                       )}
                     </div>
+
+                    {/* Git Status Badge */}
+                    {!isEditing && gitBadge && (
+                      <span
+                        className={`font-mono text-[10px] font-bold px-1 rounded shrink-0 mr-1 ${
+                          gitBadge === 'M'
+                            ? 'text-amber-500'
+                            : gitBadge === 'U' || gitBadge === 'A'
+                            ? 'text-emerald-500'
+                            : 'text-rose-500'
+                        }`}
+                        title={`Git: ${
+                          gitBadge === 'M'
+                            ? 'Modificado'
+                            : gitBadge === 'U'
+                            ? 'Não rastreado'
+                            : gitBadge === 'A'
+                            ? 'Adicionado'
+                            : 'Excluído'
+                        }`}
+                      >
+                        {gitBadge}
+                      </span>
+                    )}
 
                     {/* Ações de Hover (Renomear / Excluir) */}
                     {!isEditing && (

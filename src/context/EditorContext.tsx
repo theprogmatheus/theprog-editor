@@ -38,6 +38,7 @@ import { runtimeManager } from '../services/runtimes/manager';
 import { pythonRuntime } from '../services/runtimes/pythonRuntime';
 import type { RuntimeProgressMap } from '../services/runtimes/types';
 import type { RunPlan } from '../services/languages/types';
+import { gitClient } from '../services/git/gitClient';
 import { getRunCapability } from '../services/languages/runCapability';
 import {
   detectLanguage,
@@ -117,6 +118,11 @@ interface EditorContextType {
   setCompactFolders: (enabled: boolean) => void;
   previewMode: boolean;
   setPreviewMode: (enabled: boolean) => void;
+  enableGitExperimental: boolean;
+  setEnableGitExperimental: (enabled: boolean) => void;
+  openDiffTab: (filePath: string, title?: string) => Promise<void>;
+  gitStatusMap: Map<string, 'M' | 'A' | 'D' | 'U'>;
+  refreshGitStatus: () => Promise<void>;
   saveActiveFile: () => Promise<void>;
 
   // Telas e Workspaces
@@ -346,6 +352,54 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPreviewModeState(enabled);
     localStorage.setItem('theprog_preview_mode', String(enabled));
   }, []);
+
+  const [enableGitExperimental, setEnableGitExperimentalState] = useState<boolean>(() => {
+    const saved = localStorage.getItem('theprog_enable_git_experimental');
+    return saved !== null ? saved === 'true' : false; // Desativado por padrão
+  });
+
+  const setEnableGitExperimental = useCallback((enabled: boolean) => {
+    setEnableGitExperimentalState(enabled);
+    localStorage.setItem('theprog_enable_git_experimental', String(enabled));
+    if (!enabled) {
+      gitClient.dispose();
+    }
+  }, []);
+
+  const [gitStatusMap, setGitStatusMap] = useState<Map<string, 'M' | 'A' | 'D' | 'U'>>(new Map());
+
+  const refreshGitStatus = useCallback(async () => {
+    if (!enableGitExperimental) {
+      setGitStatusMap(new Map());
+      return;
+    }
+    try {
+      const initialized = await gitClient.isInitialized();
+      if (!initialized) {
+        setGitStatusMap(new Map());
+        return;
+      }
+      const statusRes = await gitClient.getStatus(files);
+      const nextMap = new Map<string, 'M' | 'A' | 'D' | 'U'>();
+      for (const item of statusRes.staged) {
+        nextMap.set(item.path, item.status === 'modified' ? 'M' : item.status === 'added' ? 'A' : 'D');
+      }
+      for (const item of statusRes.unstaged) {
+        nextMap.set(item.path, item.status === 'modified' ? 'M' : item.status === 'added' ? 'U' : 'D');
+      }
+      setGitStatusMap(nextMap);
+    } catch {
+      // ignore
+    }
+  }, [enableGitExperimental, files]);
+
+  useEffect(() => {
+    if (!enableGitExperimental) return;
+    const timer = setTimeout(() => {
+      refreshGitStatus();
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [files, enableGitExperimental, refreshGitStatus]);
 
   const saveTimeouts = useRef<Map<string, any>>(new Map());
   const currentWsKeyRef = useRef<string>('');
@@ -987,10 +1041,8 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (!confirmed) return;
       }
       setTabs((prevTabs) => {
-        const nextTabs = prevTabs.filter(
-          (t) => t.fileId !== fileId && (!targetTab || t.filePath !== targetTab.filePath)
-        );
-        if (activeFileId === fileId || (targetTab && activeFile?.path === targetTab.filePath)) {
+        const nextTabs = prevTabs.filter((t) => t.fileId !== fileId);
+        if (activeFileId === fileId) {
           if (nextTabs.length > 0) {
             setActiveFileId(nextTabs[nextTabs.length - 1].fileId);
           } else {
@@ -1000,7 +1052,39 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return nextTabs;
       });
     },
-    [tabs, activeFileId, activeFile]
+    [tabs, activeFileId]
+  );
+
+  const openDiffTab = useCallback(
+    async (filePath: string, title?: string) => {
+      const cleanPath = filePath.startsWith('/') ? filePath.slice(1) : filePath;
+      const targetFile = files.find((f) => f.path === filePath || f.path === `/${cleanPath}`);
+      const originalContent = (await gitClient.readAtCommit(cleanPath, 'HEAD')) ?? '';
+      const modifiedContent = targetFile?.content ?? '';
+      const diffTabId = `diff-${filePath}`;
+
+      const diffTab: EditorTab = {
+        fileId: diffTabId,
+        filePath,
+        title: title || `Diff: ${targetFile?.name || cleanPath.split('/').pop()}`,
+        language: targetFile?.language || 'c',
+        isDiff: true,
+        diffOriginalContent: originalContent,
+        diffModifiedContent: modifiedContent,
+      };
+
+      setTabs((prev) => {
+        const existsIndex = prev.findIndex((t) => t.fileId === diffTabId);
+        if (existsIndex >= 0) {
+          const next = [...prev];
+          next[existsIndex] = diffTab;
+          return next;
+        }
+        return [...prev, diffTab];
+      });
+      setActiveFileId(diffTabId);
+    },
+    [files]
   );
 
   useEffect(() => {
@@ -1735,6 +1819,11 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setCompactFolders,
         previewMode,
         setPreviewMode,
+        enableGitExperimental,
+        setEnableGitExperimental,
+        openDiffTab,
+        gitStatusMap,
+        refreshGitStatus,
 
         // Telas e Workspaces
         currentScreen,

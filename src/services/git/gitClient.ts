@@ -1,260 +1,195 @@
-import git from 'isomorphic-git';
-import type { FileItem } from '../../types/editor';
+import type { FileItem, GitStatusEntry, GitCommitInfo, GitAuthor, GitBranchInfo } from '../../types/editor';
+import { GitEngine, type GitStatusResult } from './gitEngine';
 
-export interface GitCommitInfo {
-  oid: string;
-  message: string;
-  timestamp: number;
-  author: {
-    name: string;
-    email: string;
-  };
-}
-
-export interface GitFileStatus {
-  path: string;
-  status: 'modified' | 'added' | 'deleted' | 'unmodified';
-}
-
-/**
- * Sistema de arquivos em memória compatível com o contrato estrito de isomorphic-git
- */
-class GitMemoryFs {
-  private tree = new Map<string, Uint8Array>();
-
-  private normalize(path: string): string {
-    return path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/^\.\//, '');
-  }
-
-  public readFile = async (
-    path: string,
-    options?: { encoding?: string } | string
-  ): Promise<Uint8Array | string> => {
-    const norm = this.normalize(path);
-    const data = this.tree.get(norm);
-    if (!data) {
-      const err: any = new Error(`ENOENT: no such file or directory, open '${path}'`);
-      err.code = 'ENOENT';
-      throw err;
-    }
-    const encoding = typeof options === 'string' ? options : options?.encoding;
-    if (encoding === 'utf8' || encoding === 'utf-8') {
-      return new TextDecoder().decode(data);
-    }
-    return data;
-  };
-
-  public writeFile = async (path: string, data: Uint8Array | string): Promise<void> => {
-    const norm = this.normalize(path);
-    const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-    this.tree.set(norm, bytes);
-  };
-
-  public unlink = async (path: string): Promise<void> => {
-    const norm = this.normalize(path);
-    this.tree.delete(norm);
-  };
-
-  public readdir = async (path: string): Promise<string[]> => {
-    const norm = this.normalize(path).replace(/\/$/, '') + '/';
-    const results = new Set<string>();
-
-    for (const key of this.tree.keys()) {
-      if (key.startsWith(norm)) {
-        const sub = key.slice(norm.length);
-        const firstPart = sub.split('/')[0];
-        if (firstPart) results.add(firstPart);
-      }
-    }
-    return Array.from(results);
-  };
-
-  public mkdir = async (_path: string): Promise<void> => {
-    // Mapa plano de memória dispensa nós de diretório explícitos
-  };
-
-  public rmdir = async (path: string): Promise<void> => {
-    const norm = this.normalize(path).replace(/\/$/, '') + '/';
-    for (const key of this.tree.keys()) {
-      if (key.startsWith(norm)) {
-        this.tree.delete(key);
-      }
-    }
-  };
-
-  public stat = async (path: string) => {
-    const norm = this.normalize(path);
-    const now = Date.now();
-
-    if (this.tree.has(norm)) {
-      const size = this.tree.get(norm)!.byteLength;
-      return {
-        isFile: () => true,
-        isDirectory: () => false,
-        isSymbolicLink: () => false,
-        size,
-        mtimeMs: now,
-        ctimeMs: now,
-        ino: 1,
-        mode: 0o100644,
-        uid: 1,
-        gid: 1,
-        dev: 1,
-      };
-    }
-
-    const dirPrefix = norm.replace(/\/$/, '') + '/';
-    for (const key of this.tree.keys()) {
-      if (key.startsWith(dirPrefix)) {
-        return {
-          isFile: () => false,
-          isDirectory: () => true,
-          isSymbolicLink: () => false,
-          size: 0,
-          mtimeMs: now,
-          ctimeMs: now,
-          ino: 1,
-          mode: 0o040755,
-          uid: 1,
-          gid: 1,
-          dev: 1,
-        };
-      }
-    }
-
-    const err: any = new Error(`ENOENT: no such file or directory, stat '${path}'`);
-    err.code = 'ENOENT';
-    throw err;
-  };
-
-  public lstat = async (path: string) => {
-    return this.stat(path);
-  };
-
-  public readlink = async (_path: string): Promise<string> => {
-    const err: any = new Error('ENOSYS: function not implemented');
-    err.code = 'ENOSYS';
-    throw err;
-  };
-
-  public symlink = async (_target: string, _path: string): Promise<void> => {
-    const err: any = new Error('ENOSYS: function not implemented');
-    err.code = 'ENOSYS';
-    throw err;
-  };
-
-  public promises = this;
-}
+export type { GitStatusResult, GitCommitInfo, GitBranchInfo, GitStatusEntry };
+export type GitFileStatus = GitStatusEntry;
 
 export class GitClient {
-  private fs = new GitMemoryFs();
-  private dir = '/workspace';
-  private isInitialized = false;
+  private worker: Worker | null = null;
+  private engineFallback: GitEngine | null = null;
+  private pendingRequests = new Map<
+    number,
+    { resolve: (data: any) => void; reject: (err: any) => void }
+  >();
+  private nextId = 1;
 
-  public async init(): Promise<void> {
-    if (this.isInitialized) return;
-    try {
-      await git.init({ fs: this.fs, dir: this.dir });
-      this.isInitialized = true;
-    } catch {
-      this.isInitialized = true;
+  private getEngine(): GitEngine {
+    if (!this.engineFallback) {
+      this.engineFallback = new GitEngine();
     }
+    return this.engineFallback;
   }
 
-  public async syncWorkspace(files: FileItem[]): Promise<GitFileStatus[]> {
-    await this.init();
-
-    for (const f of files) {
-      if (f.isFolder || f.content === undefined) continue;
-      const cleanPath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
-      await this.fs.writeFile(`${this.dir}/${cleanPath}`, f.content);
+  private ensureWorker(): Worker | null {
+    if (typeof Worker === 'undefined' || typeof window === 'undefined') {
+      return null;
     }
 
-    const statuses: GitFileStatus[] = [];
-    for (const f of files) {
-      if (f.isFolder || f.content === undefined) continue;
-      const filepath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
+    if (!this.worker) {
       try {
-        const status = await git.status({
-          fs: this.fs,
-          dir: this.dir,
-          filepath,
+        this.worker = new Worker(new URL('../../workers/gitWorker.ts', import.meta.url), {
+          type: 'module',
         });
 
-        const s = status as string;
-        if (s === 'modified' || s === '*modified') {
-          statuses.push({ path: f.path, status: 'modified' });
-        } else if (s === 'untracked' || s === 'added' || s === '*added') {
-          statuses.push({ path: f.path, status: 'added' });
-        } else if (s === 'deleted' || s === '*deleted') {
-          statuses.push({ path: f.path, status: 'deleted' });
-        } else {
-          statuses.push({ path: f.path, status: 'unmodified' });
-        }
-      } catch {
-        statuses.push({ path: f.path, status: 'unmodified' });
+        this.worker.onmessage = (e: MessageEvent) => {
+          const { id, success, data, error } = e.data;
+          const pending = this.pendingRequests.get(id);
+          if (pending) {
+            this.pendingRequests.delete(id);
+            if (success) {
+              pending.resolve(data);
+            } else {
+              pending.reject(new Error(error || 'Erro desconhecido no GitWorker'));
+            }
+          }
+        };
+
+        this.worker.onerror = (err) => {
+          console.warn('Erro na thread do GitWorker:', err);
+        };
+      } catch (err) {
+        console.warn('Falha ao instanciar GitWorker, utilizando fallback local:', err);
+        this.worker = null;
+      }
+    }
+    return this.worker;
+  }
+
+  private async sendRequest<T = any>(type: string, payload?: any): Promise<T> {
+    const worker = this.ensureWorker();
+    if (!worker) {
+      const engine = this.getEngine();
+      switch (type) {
+        case 'IS_INITIALIZED':
+          return (await engine.isInitialized()) as T;
+        case 'INIT':
+          return (await engine.init(payload?.defaultBranch)) as T;
+        case 'GET_STATUS':
+          return (await engine.getStatus(payload?.files || [])) as T;
+        case 'STAGE':
+          return (await engine.stage(payload.filepath)) as T;
+        case 'STAGE_ALL':
+          return (await engine.stageAll(payload?.files || [])) as T;
+        case 'UNSTAGE':
+          return (await engine.unstage(payload.filepath)) as T;
+        case 'UNSTAGE_ALL':
+          return (await engine.unstageAll()) as T;
+        case 'DISCARD':
+          return (await engine.discard(payload.filepath)) as T;
+        case 'COMMIT':
+          return (await engine.commit(payload.message, payload.author)) as T;
+        case 'LOG':
+          return (await engine.log(payload?.depth)) as T;
+        case 'READ_AT_COMMIT':
+          return (await engine.readAtCommit(payload.filepath, payload?.commitRef)) as T;
+        case 'LIST_BRANCHES':
+          return (await engine.listBranches()) as T;
+        case 'CREATE_BRANCH':
+          return (await engine.createBranch(payload.name)) as T;
+        case 'CHECKOUT':
+          return (await engine.checkout(payload.name)) as T;
+        default:
+          throw new Error(`Comando Git não suportado: ${type}`);
       }
     }
 
-    return statuses;
+    const id = this.nextId++;
+    return new Promise<T>((resolve, reject) => {
+      this.pendingRequests.set(id, { resolve, reject });
+      worker.postMessage({ id, type, payload });
+    });
+  }
+
+  public async isInitialized(): Promise<boolean> {
+    return this.sendRequest<boolean>('IS_INITIALIZED');
+  }
+
+  public async init(defaultBranch = 'main'): Promise<void> {
+    return this.sendRequest<void>('INIT', { defaultBranch });
+  }
+
+  private mapFilesToInputs(files: FileItem[]): Array<{ path: string; content?: string }> {
+    return files
+      .filter((f) => !f.isFolder && f.content !== undefined)
+      .map((f) => ({ path: f.path, content: f.content }));
+  }
+
+  public async getStatus(files: FileItem[]): Promise<GitStatusResult> {
+    const inputs = this.mapFilesToInputs(files);
+    return this.sendRequest<GitStatusResult>('GET_STATUS', { files: inputs });
+  }
+
+  public async syncWorkspace(files: FileItem[]): Promise<GitStatusEntry[]> {
+    const res = await this.getStatus(files);
+    return [...res.staged, ...res.unstaged];
+  }
+
+  public async stage(filepath: string): Promise<void> {
+    return this.sendRequest<void>('STAGE', { filepath });
+  }
+
+  public async stageAll(files: FileItem[]): Promise<void> {
+    const inputs = this.mapFilesToInputs(files);
+    return this.sendRequest<void>('STAGE_ALL', { files: inputs });
+  }
+
+  public async unstage(filepath: string): Promise<void> {
+    return this.sendRequest<void>('UNSTAGE', { filepath });
+  }
+
+  public async unstageAll(): Promise<void> {
+    return this.sendRequest<void>('UNSTAGE_ALL');
+  }
+
+  public async discard(filepath: string): Promise<string | null> {
+    return this.sendRequest<string | null>('DISCARD', { filepath });
   }
 
   public async commit(
-    files: FileItem[],
-    message: string,
-    author = { name: 'TheProg Developer', email: 'dev@theprog.local' }
+    filesOrMessage: FileItem[] | string,
+    messageOrAuthor?: string | GitAuthor,
+    authorArg?: GitAuthor
   ): Promise<string> {
-    await this.init();
-
-    for (const f of files) {
-      if (f.isFolder || f.content === undefined) continue;
-      const cleanPath = f.path.startsWith('/') ? f.path.slice(1) : f.path;
-      await this.fs.writeFile(`${this.dir}/${cleanPath}`, f.content);
-      await git.add({ fs: this.fs, dir: this.dir, filepath: cleanPath });
+    if (Array.isArray(filesOrMessage)) {
+      // Assinatura retrocompatível commit(files, message, author)
+      const files = filesOrMessage;
+      const message = typeof messageOrAuthor === 'string' ? messageOrAuthor : 'Atualização de arquivos';
+      const author = authorArg;
+      await this.stageAll(files);
+      return this.sendRequest<string>('COMMIT', { message, author });
     }
 
-    const sha = await git.commit({
-      fs: this.fs,
-      dir: this.dir,
-      message,
-      author,
-    });
-
-    return sha;
+    const message = filesOrMessage;
+    const author = messageOrAuthor as GitAuthor | undefined;
+    return this.sendRequest<string>('COMMIT', { message, author });
   }
 
-  public async log(): Promise<GitCommitInfo[]> {
-    await this.init();
-    try {
-      const commits = await git.log({ fs: this.fs, dir: this.dir, depth: 20 });
-      return commits.map((c) => ({
-        oid: c.oid,
-        message: c.commit.message,
-        timestamp: c.commit.author.timestamp * 1000,
-        author: {
-          name: c.commit.author.name,
-          email: c.commit.author.email,
-        },
-      }));
-    } catch {
-      return [];
-    }
+  public async log(depth = 30): Promise<GitCommitInfo[]> {
+    return this.sendRequest<GitCommitInfo[]>('LOG', { depth });
   }
 
   public async readAtCommit(filepath: string, commitRef = 'HEAD'): Promise<string | null> {
-    try {
-      const cleanPath = filepath.startsWith('/') ? filepath.slice(1) : filepath;
-      const oid = commitRef.length === 40 ? commitRef : await git.resolveRef({ fs: this.fs, dir: this.dir, ref: commitRef });
-      const { blob } = await git.readBlob({
-        fs: this.fs,
-        dir: this.dir,
-        oid,
-        filepath: cleanPath,
-      });
-      return new TextDecoder().decode(blob);
-    } catch {
-      return null;
+    return this.sendRequest<string | null>('READ_AT_COMMIT', { filepath, commitRef });
+  }
+
+  public async listBranches(): Promise<GitBranchInfo[]> {
+    return this.sendRequest<GitBranchInfo[]>('LIST_BRANCHES');
+  }
+
+  public async createBranch(name: string): Promise<void> {
+    return this.sendRequest<void>('CREATE_BRANCH', { name });
+  }
+
+  public async checkout(name: string): Promise<Array<{ path: string; content: string }>> {
+    return this.sendRequest<Array<{ path: string; content: string }>>('CHECKOUT', { name });
+  }
+
+  public dispose(): void {
+    if (this.worker) {
+      this.worker.terminate();
+      this.worker = null;
     }
+    this.pendingRequests.clear();
   }
 }
 

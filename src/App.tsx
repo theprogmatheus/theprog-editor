@@ -14,6 +14,7 @@ import { GlobalContextMenu } from './components/common/GlobalContextMenu';
 import { GitPanel } from './components/layout/GitPanel';
 
 const MainLayout: React.FC = () => {
+  const { enableGitExperimental } = useEditor();
   const [activeActivityTab, setActiveActivityTab] = useState<ActivityTab>('explorer');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -21,6 +22,12 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     document.title = 'TheProg Editor';
   }, []);
+
+  useEffect(() => {
+    if (!enableGitExperimental && activeActivityTab === 'git') {
+      setActiveActivityTab('explorer');
+    }
+  }, [enableGitExperimental, activeActivityTab]);
 
   const handleActivityChange = (tab: ActivityTab) => {
     if (tab === 'settings') {
@@ -46,11 +53,7 @@ const MainLayout: React.FC = () => {
         />
 
         {activeActivityTab === 'explorer' && <Sidebar />}
-        {activeActivityTab === 'git' && (
-          <div className="w-64 h-full border-r border-[#e5e5e5] dark:border-[#252526] shrink-0">
-            <GitPanel />
-          </div>
-        )}
+        {activeActivityTab === 'git' && enableGitExperimental && <GitPanel />}
 
         <div className="flex-1 flex flex-col overflow-hidden">
           <EditorArea />

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import Editor, { type OnMount } from '@monaco-editor/react';
+import Editor, { DiffEditor, type OnMount } from '@monaco-editor/react';
 import * as monaco from 'monaco-editor';
-import { X, FileCode, Plus, Columns2, Eye, Code } from 'lucide-react';
+import { X, FileCode, Plus, Columns2, Eye, Code, GitCompare } from 'lucide-react';
 import { useEditor } from '../../context/EditorContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -9,7 +9,7 @@ import { useDialog } from '../../context/DialogContext';
 import { formatCode } from '../../utils/formatter';
 import { setWorkspaceFilesProvider } from '../../services/monaco/cLanguageService';
 import { syncWorkspaceTsFiles } from '../../services/monaco/tsLanguageService';
-import { getMonacoLanguage, isTextFileKind } from '../../services/languages/registry';
+import { detectLanguage, getMonacoLanguage, isTextFileKind } from '../../services/languages/registry';
 import { UnsupportedFileView } from '../common/UnsupportedFileView';
 import { ImagePreview } from '../common/ImagePreview';
 import { MarkdownPreview } from '../common/MarkdownPreview';
@@ -34,6 +34,7 @@ export const EditorArea: React.FC = () => {
     decreaseFontSize,
     resetFontSize,
   } = useEditor();
+  const activeTab = tabs.find((t) => t.fileId === activeFileId);
   const { theme } = useTheme();
   const { showPrompt } = useDialog();
   const editorRef = useRef<any>(null);
@@ -120,6 +121,7 @@ export const EditorArea: React.FC = () => {
   }, [activeFile, runActiveFile, updateFileContent, saveActiveFile, formatActiveFile, increaseFontSize, decreaseFontSize, resetFontSize]);
 
   const handleRun = () => {
+    if (activeTab?.isDiff) return;
     const currentCode = editorRef.current ? editorRef.current.getValue() : undefined;
     runActiveFileRef.current(currentCode);
   };
@@ -135,6 +137,7 @@ export const EditorArea: React.FC = () => {
   }, [activeFileId]);
 
   const handleFormat = async () => {
+    if (activeTab?.isDiff) return;
     if (editorRef.current && activeFileRef.current) {
       const editor = editorRef.current;
       const model = editor.getModel();
@@ -233,7 +236,11 @@ export const EditorArea: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const monacoLanguage = activeFile ? getMonacoLanguage(activeFile.language) : 'plaintext';
+  const monacoLanguage = activeTab?.isDiff
+    ? getMonacoLanguage(detectLanguage(activeTab.filePath))
+    : activeFile
+    ? getMonacoLanguage(activeFile.language)
+    : 'plaintext';
   const secondaryFile = files.find((f) => f.id === secondaryFileId) || null;
 
   const [forcedText, setForcedText] = useState<{ fileId: string; content: string } | null>(null);
@@ -316,11 +323,12 @@ export const EditorArea: React.FC = () => {
               }`}
             >
               <span
-                className={`truncate max-w-[140px] ${
+                className={`truncate max-w-[140px] flex items-center space-x-1.5 ${
                   tab.isPreview ? 'italic font-normal text-neutral-500 dark:text-neutral-400' : ''
                 }`}
               >
-                {tab.title}
+                {tab.isDiff && <GitCompare className="w-3.5 h-3.5 text-[#007acc] dark:text-[#3794ff] shrink-0" />}
+                <span className="truncate">{tab.title}</span>
               </span>
 
               {/* Indicador de modificado ou botão fechar */}
@@ -447,7 +455,44 @@ export const EditorArea: React.FC = () => {
             isSplitView ? 'flex-1 border-r border-[#e5e5e5] dark:border-[#252526]' : 'w-full'
           }`}
         >
-          {activeFile ? (
+          {activeTab?.isDiff ? (
+            <div className="flex-1 w-full h-full min-h-0 flex flex-col relative">
+              <div className="h-7 px-3 flex items-center justify-between bg-[#f8f9fa] dark:bg-[#1a1a1a] border-b border-[#e5e5e5] dark:border-[#252526] text-xs text-[#666666] dark:text-[#aaaaaa] select-none shrink-0">
+                <div className="flex items-center space-x-1.5 font-mono text-[11px] font-semibold text-[#007acc] dark:text-[#3794ff]">
+                  <GitCompare className="w-3.5 h-3.5" />
+                  <span>DIFF: HEAD ⟷ Working Tree</span>
+                </div>
+                <span className="font-mono text-[11px] text-neutral-500 truncate max-w-[50%]">
+                  {activeTab.filePath}
+                </span>
+              </div>
+              <div className="flex-1 w-full h-full min-h-0 relative">
+                <DiffEditor
+                  height="100%"
+                  theme={theme === 'dark' ? 'vs-dark' : 'light'}
+                  language={monacoLanguage}
+                  original={activeTab.diffOriginalContent ?? ''}
+                  modified={activeTab.diffModifiedContent ?? ''}
+                  options={{
+                    readOnly: true,
+                    renderSideBySide: true,
+                    fontSize,
+                    fontFamily: "'Fira Code', 'Cascadia Code', Consolas, 'Courier New', monospace",
+                    fontLigatures: true,
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false,
+                    originalEditable: false,
+                  }}
+                  loading={
+                    <div className="flex items-center justify-center h-full text-xs text-[#888888]">
+                      Carregando Comparação Diff...
+                    </div>
+                  }
+                />
+              </div>
+            </div>
+          ) : activeFile ? (
             activeFile.language === 'markdown' && isMarkdownPreview ? (
               <MarkdownPreview content={activeFile.content || ''} filename={activeFile.name} />
             ) : isTextFileKind(activeFile.kind) || isForcedTextView ? (

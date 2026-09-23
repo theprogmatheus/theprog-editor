@@ -22,6 +22,7 @@ import {
   FolderOpen,
   Folder,
   Eye,
+  GitBranch,
 } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useDialog } from '../../context/DialogContext';
@@ -96,6 +97,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
     setCompactFolders,
     previewMode,
     setPreviewMode,
+    enableGitExperimental,
+    setEnableGitExperimental,
     runtimes,
     preloadRuntimes,
     isSystemReady,
@@ -495,6 +498,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Controle de Versão Git (Recurso Experimental) */}
+              <div className="p-3.5 rounded-xl bg-[#f8f8f8] dark:bg-[#1e1e1e] border border-[#e5e5e5] dark:border-[#333333] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2 font-semibold text-black dark:text-white">
+                    <GitBranch className="w-4 h-4 text-[#007acc] dark:text-[#3794ff]" />
+                    <span>Controle de Versão Git</span>
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                      EXPERIMENTAL
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={enableGitExperimental}
+                      onChange={(e) => setEnableGitExperimental(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-neutral-300 peer-focus:outline-none rounded-full peer dark:bg-neutral-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-[#007acc]"></div>
+                  </label>
+                </div>
+
+                <p className="text-[#666666] dark:text-[#888888] leading-relaxed">
+                  Habilita controle de versão Git local na barra de atividades com inicialização de repositório, staging (add/reset), commits com hash SHA, histórico, branches e visualização de diff no Monaco Editor. Opera 100% no navegador e offline via IndexedDB.
+                </p>
               </div>
 
               {/* Armazenamento e Modo Offline */}
