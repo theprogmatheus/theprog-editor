@@ -10,8 +10,12 @@
 ![Lint](https://img.shields.io/badge/oxlint-0%20errors-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)
 [![Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-orange.svg)](CHANGELOG.md)
+[![Agents & Docs](https://img.shields.io/badge/Agents_AI-AGENTS.md-purple.svg)](AGENTS.md)
+[![Docs](https://img.shields.io/badge/docs-.docs%2F-blueviolet.svg)](.docs/INDEX.md)
 
 O **TheProg Editor** é um ambiente de desenvolvimento integrado (IDE) que executa diretamente na aba do navegador, concebido com foco total em **portabilidade, privacidade absoluta e autonomia offline**. Ele permite escrever, formatar, compilar, interpretar e executar programas em **C, C++, Python, JavaScript e TypeScript** sem depender de servidores remotos, containers na nuvem ou instalações complexas no sistema operacional.
+
+> 🤖 **Para Agentes de IA & Engenharia:** Consulte o [**AGENTS.md**](AGENTS.md) para o manual operacional de IA e o índice completo da documentação técnica em [**`.docs/`**](.docs/INDEX.md).
 
 > **Sobre o modo offline:** no primeiro acesso é necessária conexão com a internet para baixar e armazenar em cache os ambientes de execução (Clang/LLVM, Pyodide e esbuild). A partir do segundo acesso, o editor opera de forma integralmente autônoma e offline como PWA (*Progressive Web App*).
 
@@ -165,6 +169,19 @@ theprog-editor/
 │   ├── types/                    # Contratos de tipos (editor.ts, filesystem.d.ts)
 │   ├── utils/                    # Formatadores, detecção de indentação e helpers
 │   └── workers/                  # compilerWorker, wasmWorker, pythonWorker, jsWorker, gitWorker
+├── .docs/                    # 📚 Documentação técnica exaustiva e canônica
+│   ├── INDEX.md              # Índice mestre e navegação estruturada
+│   ├── 01_ARCHITECTURE.md    # Arquitetura, workers e concorrência
+│   ├── 02_RUNTIMES_AND_EXECUTION.md # Compiladores e ProcessManager
+│   ├── 03_STORAGE_AND_VFS.md # VFS, IndexedDB e File System Access API
+│   ├── 04_GIT_SUBSYSTEM.md   # Motor Git client-side em Web Worker
+│   ├── 05_UI_AND_COMPONENTS.md # React 19, Monaco e Xterm.js
+│   ├── 06_SECURITY_AND_SANDBOXING.md # Sandboxing de código e COOP/COEP
+│   ├── 07_OFFLINE_AND_PWA.md # Service Worker e ciclo de vida offline
+│   ├── 08_CONVENTIONS_AND_STANDARDS.md # Padrões de código e lições aprendidas
+│   ├── 09_TESTING_AND_VERIFICATION.md # Suíte de testes e E2E
+│   └── 10_ROADMAP_AND_DEBT.md # Matriz de débitos técnicos e futuro
+├── AGENTS.md                 # 🤖 Manual operacional e prompt para Agentes de IA
 ├── AUDITORIA_SISTEMICA.md        # Relatório formal da auditoria 360° de produto
 ├── CHANGELOG.md                  # Histórico formal de mudanças nos padrões SemVer
 ├── index.html
@@ -342,6 +359,25 @@ Qualquer acesso originado de servidores ou espelhos não oficiais (como `theprog
 - **Desktop & Mobile:** Instalável no Google Chrome, Microsoft Edge, Safari e navegadores móveis pelo botão **"Instalar App"**.
 - **Janela Própria:** Executa em modo *standalone*, integrado à barra de tarefas do sistema operacional.
 - **Offline Total:** O Service Worker mantém todos os ambientes, wheels e assets em cache durável.
+
+---
+
+## 🤖 Guia para Agentes de IA & Documentação Técnica (`.docs/`)
+
+Este repositório é totalmente otimizado e instrumentado para trabalho autônomo com **Agentes de IA** (Cursor, Windsurf, Copilot, Claude, Devin, Antigravity, etc.).
+
+- 📘 **Instruções Primárias para IA:** Acesse [**`AGENTS.md`**](AGENTS.md) para o manual operacional de inicialização, invariantes inegociáveis do sistema e roteador de tarefas.
+- 📚 **Acervo Técnico Canônico:** O diretório [**`.docs/`**](.docs/INDEX.md) contém especificações exaustivas de cada camada da IDE:
+  - [`.docs/01_ARCHITECTURE.md`](.docs/01_ARCHITECTURE.md) — Arquitetura de sistemas, isolamento de workers e concorrência.
+  - [`.docs/02_RUNTIMES_AND_EXECUTION.md`](.docs/02_RUNTIMES_AND_EXECUTION.md) — Clang, WASI, Pyodide, esbuild e ProcessManager com PIDs.
+  - [`.docs/03_STORAGE_AND_VFS.md`](.docs/03_STORAGE_AND_VFS.md) — VFS, IndexedDB, File System Access API e árvore $O(V)$.
+  - [`.docs/04_GIT_SUBSYSTEM.md`](.docs/04_GIT_SUBSYSTEM.md) — Motor Git client-side em Web Worker com IndexedDB.
+  - [`.docs/05_UI_AND_COMPONENTS.md`](.docs/05_UI_AND_COMPONENTS.md) — Componentes React 19, Monaco Editor, Xterm.js e Split View.
+  - [`.docs/06_SECURITY_AND_SANDBOXING.md`](.docs/06_SECURITY_AND_SANDBOXING.md) — Sandbox JS, COOP/COEP e limites de execução.
+  - [`.docs/07_OFFLINE_AND_PWA.md`](.docs/07_OFFLINE_AND_PWA.md) — Service Worker, Workbox e estratégias offline.
+  - [`.docs/08_CONVENTIONS_AND_STANDARDS.md`](.docs/08_CONVENTIONS_AND_STANDARDS.md) — Padrões TypeScript, linter e lições aprendidas.
+  - [`.docs/09_TESTING_AND_VERIFICATION.md`](.docs/09_TESTING_AND_VERIFICATION.md) — Testes automatizados Vitest e E2E offline.
+  - [`.docs/10_ROADMAP_AND_DEBT.md`](.docs/10_ROADMAP_AND_DEBT.md) — Matriz de débitos técnicos e futuro do projeto.
 
 ---
 
