@@ -48,6 +48,6 @@ jobs:
             echo "🚀 Iniciando deploy na VPS..."
             cd /opt/theprog-editor
             git pull origin main
-            docker compose up -d --build
+            docker compose up -d --build --force-recreate
             docker image prune -f
             echo "✅ Deploy finalizado com sucesso!"
