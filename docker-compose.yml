@@ -5,9 +5,10 @@ services:
     build: .
     container_name: theprog-editor
     restart: always
-    ports:
-      - "80:80"
-      - "443:443"
+    # ports:
+    #   - "80:80"
+    #   - "443:443"
+    expose:
+      - "80"
     volumes:
       - ./certs:/etc/nginx/certs:ro
-
