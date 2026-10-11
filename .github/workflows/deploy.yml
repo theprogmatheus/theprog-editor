@@ -1,4 +1,4 @@
-name: CI & Auto-Deploy to VPS
+name: CI & Auto-Deploy to Coolify
 
 on:
   push:
@@ -33,21 +33,23 @@ jobs:
         run: npm test
 
   deploy:
-    name: Deploy to VPS
+    name: Trigger Coolify Deploy
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - name: Execute Remote SSH Commands
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT || 22 }}
-          script: |
-            echo "🚀 Iniciando deploy na VPS..."
-            cd /opt/theprog-editor
-            git pull origin main
-            docker compose up -d --build --force-recreate
-            docker image prune -f
-            echo "✅ Deploy finalizado com sucesso!"
+      - name: Trigger Webhook
+        run: |
+          echo "🚀 Disparando build no Coolify..."
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "${{ secrets.COOLIFY_WEBHOOK_URL }}")
+          HTTP_BODY=$(echo "$RESPONSE" | sed '$d')
+          HTTP_STATUS=$(echo "$RESPONSE" | tail -n1)
+
+          echo "Resposta do Coolify: $HTTP_BODY"
+          echo "Status HTTP: $HTTP_STATUS"
+
+          if [ "$HTTP_STATUS" -ne 200 ] && [ "$HTTP_STATUS" -ne 201 ]; then
+            echo "❌ Falha ao disparar deploy no Coolify!"
+            exit 1
+          fi
+
+          echo "✅ Deploy enfileirado com sucesso no Coolify!"
